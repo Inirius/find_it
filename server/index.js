@@ -144,12 +144,18 @@ app.get('/api/leboncoin/search', async (req, res) => {
     await page.waitForSelector('[data-test-id="ad"]', { timeout: 15000 });
 
     // Extract data from the page
-    const items = await page.evaluate(() => {
+    const pageData = await page.evaluate(() => {
       const results = [];
       const adCards = document.querySelectorAll('[data-test-id="ad"]');
+      const debugData = {}; // Store first card data
       
-      adCards.forEach((card) => {
+      adCards.forEach((card, idx) => {
         try {
+          // DEBUG: Capture full first card
+          if (idx === 0) {
+            debugData.firstCardText = card.textContent;
+          }
+          
           // Title from article aria-label or h3
           const article = card.querySelector('article[data-test-id="ad"]') || card;
           let title = article.getAttribute('aria-label');
@@ -173,30 +179,15 @@ app.get('/api/leboncoin/search', async (req, res) => {
             }
           }
 
-          // Price: extract the first price-like token (e.g., "240 €") and ignore trailing text
+          // Price: look for explicit pattern "Prix: 465 €" in full card text
           let price = null;
-          const priceRegex = /\d[\d\s.,]*\s*€|eur/i;
-          const textNodes = card.querySelectorAll('p, span, div');
-          textNodes.forEach((el) => {
-            if (price) return;
-            const text = el.textContent?.trim();
-            if (!text) return;
-            const match = text.match(priceRegex);
-            if (match) {
-              price = match[0].replace(/\s+/g, ' ').trim();
-            }
-          });
+          const pricePatternMatch = card.textContent.match(/Prix:\s*([\d\s.,]+\s*€)/);
+          if (pricePatternMatch) {
+            price = pricePatternMatch[1].trim();
+          }
 
-          // Livraison: only mark when a small text explicitly mentions livraison
-          const hasLivraison = Array.from(textNodes).some((el) => {
-            const t = el.textContent?.trim().toLowerCase() || '';
-            if (!t) return false;
-            // keep short texts and avoid exact title match
-            if (t.length > 80) return false;
-            if (title && t === title.trim().toLowerCase()) return false;
-            return t.includes('livraison');
-          });
-          const shipping = hasLivraison ? 'Livraison disponible' : null;
+          // Livraison: look for explicit "Livraison possible" in full card text
+          const shipping = card.textContent.includes('Livraison possible') ? 'Livraison possible' : null;
 
           if (title && url) {
             results.push({ title, url, image, alt: title, price, shipping });
@@ -206,9 +197,17 @@ app.get('/api/leboncoin/search', async (req, res) => {
         }
       });
       
-      return results;
+      return { results, debugData };
     });
 
+    // Log debug data (in Node context, not browser context)
+    if (pageData.debugData?.firstCardText) {
+      console.log('=== FIRST CARD FULL TEXT ===');
+      console.log(pageData.debugData.firstCardText);
+      console.log('=== END ===');
+    }
+
+    const items = pageData.results;
     await browser.close();
     console.log(`✅ Found ${items.length} items on LeBonCoin via Puppeteer`);
     
