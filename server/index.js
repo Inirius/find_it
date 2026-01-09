@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
+import * as cheerio from 'cheerio';
+import puppeteer from 'puppeteer';
 
 // Load environment variables from server/.env regardless of working directory
 const __filename = fileURLToPath(import.meta.url);
@@ -108,6 +110,121 @@ app.all('/api/ebay/notifications/account-deletion', (req, res) => {
 
   // Acknowledge receipt quickly (eBay expects 200 within ~3s)
   res.status(200).json({ ok: true });
+});
+
+// LeBonCoin scraping with Puppeteer (bypasses DataDome/anti-bot)
+app.get('/api/leboncoin/search', async (req, res) => {
+  let browser;
+  try {
+    const { query = 'drone' } = req.query;
+    const searchUrl = `https://www.leboncoin.fr/recherche?text=${encodeURIComponent(query)}`;
+
+    console.log(`🤖 Scraping LeBonCoin with Puppeteer for: "${query}"`);
+
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled'
+      ]
+    });
+
+    const page = await browser.newPage();
+    
+    // Set realistic viewport and user agent
+    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    // Navigate and wait for network to be idle
+    await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Wait for ads to load (adjust selector if needed)
+    await page.waitForSelector('[data-test-id="ad"]', { timeout: 15000 });
+
+    // Extract data from the page
+    const items = await page.evaluate(() => {
+      const results = [];
+      const adCards = document.querySelectorAll('[data-test-id="ad"]');
+      
+      adCards.forEach((card) => {
+        try {
+          // Title from article aria-label or h3
+          const article = card.querySelector('article[data-test-id="ad"]') || card;
+          let title = article.getAttribute('aria-label');
+          if (!title) {
+            const h3 = card.querySelector('h3');
+            title = h3?.textContent?.trim();
+          }
+          
+          // URL from main link
+          const linkEl = card.querySelector('a[href*="/ad/"]') || card.querySelector('a[href]');
+          const href = linkEl?.getAttribute('href');
+          const url = href ? (href.startsWith('http') ? href : `https://www.leboncoin.fr${href}`) : null;
+          
+          // Image from picture/source or img
+          let image = card.querySelector('img')?.getAttribute('src');
+          if (!image) {
+            const source = card.querySelector('picture source[srcset]');
+            if (source) {
+              const srcset = source.getAttribute('srcset');
+              image = srcset?.split(',')[0]?.split(' ')[0];
+            }
+          }
+          
+          // Price from visible text (look for currency symbol)
+          let price = null;
+          const priceElements = card.querySelectorAll('p, span, div');
+          priceElements.forEach(el => {
+            const text = el.textContent?.trim();
+            if (text && /^[0-9]+(?:[.,][0-9]+)?\s*€?/.test(text) && text.length < 50 && !price) {
+              price = text;
+            }
+          });
+          
+          // Location from separate section
+          let location = null;
+          priceElements.forEach(el => {
+            const text = el.textContent?.trim();
+            if (text && text.length > 2 && text.length < 100 && !location) {
+              // Look for city patterns or postal codes
+              if (/^[A-Z]/.test(text) && !text.includes('€') && !text.match(/^[0-9]+/)) {
+                location = text;
+              }
+            }
+          });
+
+          if (title && url) {
+            results.push({ title, url, image, alt: title, price, shipping: location });
+          }
+        } catch (e) {
+          console.warn('Parse error:', e.message);
+        }
+      });
+      
+      return results;
+    });
+
+    await browser.close();
+    console.log(`✅ Found ${items.length} items on LeBonCoin via Puppeteer`);
+    
+    res.json({ 
+      success: true, 
+      count: items.length, 
+      items: items.slice(0, 20), 
+      source: 'LeBonCoin (Puppeteer)' 
+    });
+
+  } catch (error) {
+    if (browser) await browser.close();
+    console.error('LeBonCoin Puppeteer error:', error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message, 
+      details: 'Failed to scrape LeBonCoin with Puppeteer' 
+    });
+  }
 });
 
 // eBay scraping endpoint
@@ -298,3 +415,4 @@ app.listen(PORT, () => {
     console.log('   ⚠️  No EBAY_NOTIFICATION_TOKEN found in .env');
   }
 });
+

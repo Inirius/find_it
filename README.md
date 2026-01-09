@@ -4,14 +4,27 @@ Objectif : un site unique pour rechercher des objets sur plusieurs places de mar
 
 ## Démarrage rapide
 
-### Backend (port 3002)
+### Setup initial (une seule fois)
+```bash
+# Backend
+cd server
+npm install
+
+# Frontend (retour à la racine)
+cd ..
+npm install
+```
+
+### Lancer le site (à chaque fois)
+
+Terminal 1 - Backend (port 3002) :
 ```bash
 cd server
 $env:PORT=3002
 npm start
 ```
 
-### Frontend (port 5173)
+Terminal 2 - Frontend (port 5173) :
 ```bash
 npm run dev
 ```
