@@ -172,31 +172,34 @@ app.get('/api/leboncoin/search', async (req, res) => {
               image = srcset?.split(',')[0]?.split(' ')[0];
             }
           }
-          
-          // Price from visible text (look for currency symbol)
+
+          // Price: extract the first price-like token (e.g., "240 €") and ignore trailing text
           let price = null;
-          const priceElements = card.querySelectorAll('p, span, div');
-          priceElements.forEach(el => {
+          const priceRegex = /\d[\d\s.,]*\s*€|eur/i;
+          const textNodes = card.querySelectorAll('p, span, div');
+          textNodes.forEach((el) => {
+            if (price) return;
             const text = el.textContent?.trim();
-            if (text && /^[0-9]+(?:[.,][0-9]+)?\s*€?/.test(text) && text.length < 50 && !price) {
-              price = text;
-            }
-          });
-          
-          // Location from separate section
-          let location = null;
-          priceElements.forEach(el => {
-            const text = el.textContent?.trim();
-            if (text && text.length > 2 && text.length < 100 && !location) {
-              // Look for city patterns or postal codes
-              if (/^[A-Z]/.test(text) && !text.includes('€') && !text.match(/^[0-9]+/)) {
-                location = text;
-              }
+            if (!text) return;
+            const match = text.match(priceRegex);
+            if (match) {
+              price = match[0].replace(/\s+/g, ' ').trim();
             }
           });
 
+          // Livraison: only mark when a small text explicitly mentions livraison
+          const hasLivraison = Array.from(textNodes).some((el) => {
+            const t = el.textContent?.trim().toLowerCase() || '';
+            if (!t) return false;
+            // keep short texts and avoid exact title match
+            if (t.length > 80) return false;
+            if (title && t === title.trim().toLowerCase()) return false;
+            return t.includes('livraison');
+          });
+          const shipping = hasLivraison ? 'Livraison disponible' : null;
+
           if (title && url) {
-            results.push({ title, url, image, alt: title, price, shipping: location });
+            results.push({ title, url, image, alt: title, price, shipping });
           }
         } catch (e) {
           console.warn('Parse error:', e.message);
