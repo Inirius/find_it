@@ -201,11 +201,11 @@ app.get('/api/leboncoin/search', async (req, res) => {
     });
 
     // Log debug data (in Node context, not browser context)
-    if (pageData.debugData?.firstCardText) {
-      console.log('=== FIRST CARD FULL TEXT ===');
-      console.log(pageData.debugData.firstCardText);
-      console.log('=== END ===');
-    }
+    // if (pageData.debugData?.firstCardText) {
+    //   console.log('=== FIRST CARD FULL TEXT ===');
+    //   console.log(pageData.debugData.firstCardText);
+    //   console.log('=== END ===');
+    // }
 
     const items = pageData.results;
     await browser.close();
@@ -329,6 +329,7 @@ app.get('/api/ebay/browse', async (req, res) => {
         q: query,
         limit: 20,
         marketplace_id: 'EBAY_FR',
+        filter: 'itemLocationCountry:FR', // Limite à articles localisés en France
       },
       headers: {
         Authorization: `Bearer ${token}`,
