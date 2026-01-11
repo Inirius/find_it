@@ -296,13 +296,18 @@ app.get('/api/vinted/search', async (req, res) => {
     const { query = 'drone', page = '1' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const itemsPerPage = 40;
-    const startIdx = (pageNum - 1) * itemsPerPage;
-    const endIdx = startIdx + itemsPerPage;
-
+    
+    // Calculate which Vinted page to load based on frontend page number
+    // Each Vinted page has ~156 items = ~4 frontend pages (156/40 = 3.9)
+    // We'll dynamically calculate after scraping
+    const estimatedItemsPerVintedPage = 150; // Rough estimate
+    const estimatedPagesPerVintedPage = Math.ceil(estimatedItemsPerVintedPage / itemsPerPage);
+    const vintedPageToLoad = Math.ceil(pageNum / estimatedPagesPerVintedPage);
+    
     // Vinted search URL format, category 3002 = Electronics, Video Games
-    const searchUrl = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(query)}&catalog[]=3002`;
+    const searchUrl = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(query)}&catalog[]=3002&page=${vintedPageToLoad}`;
 
-    console.log(`🤖 Scraping Vinted with Puppeteer for: "${query}" (page ${pageNum})`);
+    console.log(`🤖 Scraping Vinted page ${vintedPageToLoad} for: "${query}" (frontend page ${pageNum})`);
 
     browser = await puppeteer.launch({
       headless: true,
@@ -408,18 +413,24 @@ app.get('/api/vinted/search', async (req, res) => {
     });
 
     await browser.close();
-    console.log(`✅ Found ${pageData.length} items on Vinted via Puppeteer`);
     
-    const totalItems = pageData.length;
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const totalScraped = pageData.length;
+    const pagesPerVintedPage = Math.ceil(totalScraped / itemsPerPage);
+    
+    // Calculate which subset of the scraped items to return
+    const localPageOffset = ((pageNum - 1) % pagesPerVintedPage);
+    const startIdx = localPageOffset * itemsPerPage;
+    const endIdx = startIdx + itemsPerPage;
     const paginatedItems = pageData.slice(startIdx, endIdx);
+    
+    console.log(`✅ Scraped ${totalScraped} items from Vinted page ${vintedPageToLoad}, returning items ${startIdx}-${endIdx} (frontend page ${pageNum})`);
     
     res.json({ 
       success: true, 
       count: paginatedItems.length,
-      total: totalItems,
+      total: totalScraped,
       page: pageNum,
-      totalPages: totalPages,
+      totalPages: pagesPerVintedPage,
       items: paginatedItems, 
       source: 'Vinted (Puppeteer)' 
     });
