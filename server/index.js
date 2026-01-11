@@ -528,6 +528,8 @@ app.get('/api/ebay/browse', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Missing EBAY_APP_ID or EBAY_CLIENT_SECRET' });
     }
 
+    console.log(`🔍 Searching eBay Browse API for: "${query}" (page ${pageNum})`);
+
     const token = await getBrowseOAuthToken();
     const apiUrl = EBAY_SANDBOX
       ? 'https://api.sandbox.ebay.com/buy/browse/v1/item_summary/search'
@@ -562,6 +564,8 @@ app.get('/api/ebay/browse', async (req, res) => {
 
     const totalItems = response.data?.total || items.length;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
+
+    console.log(`✅ Found ${items.length} items on eBay (${totalItems} total, page ${pageNum}/${totalPages})`);
 
     res.json({
       success: true,

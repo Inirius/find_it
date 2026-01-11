@@ -156,25 +156,6 @@ function App() {
           {ebayItems.length === 0 && !loading && (
             <p style={{color: '#999'}}>Aucun résultat eBay</p>
           )}
-          {ebayItems.length > 0 && (
-            <div style={{display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12}}>
-              <button 
-                disabled={pageEbay === 1} 
-                onClick={() => setPageEbay(pageEbay - 1)}
-                style={{padding: '6px 12px', cursor: pageEbay === 1 ? 'not-allowed' : 'pointer', opacity: pageEbay === 1 ? 0.5 : 1}}
-              >
-                ← Précédent
-              </button>
-              <span style={{padding: '6px 0'}}>Page {pageEbay}</span>
-              <button 
-                disabled={ebayItems.length < 40}
-                onClick={() => setPageEbay(pageEbay + 1)}
-                style={{padding: '6px 12px', cursor: ebayItems.length < 40 ? 'not-allowed' : 'pointer', opacity: ebayItems.length < 40 ? 0.5 : 1}}
-              >
-                Suivant →
-              </button>
-            </div>
-          )}
         </div>
 
         <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
@@ -192,25 +173,6 @@ function App() {
           ))}
           {leboncoinItems.length === 0 && !loading && (
             <p style={{color: '#999'}}>Aucun résultat LeBonCoin</p>
-          )}
-          {leboncoinItems.length > 0 && (
-            <div style={{display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12}}>
-              <button 
-                disabled={pageLbc === 1}
-                onClick={() => setPageLbc(pageLbc - 1)}
-                style={{padding: '6px 12px', cursor: pageLbc === 1 ? 'not-allowed' : 'pointer', opacity: pageLbc === 1 ? 0.5 : 1}}
-              >
-                ← Précédent
-              </button>
-              <span style={{padding: '6px 0'}}>Page {pageLbc}</span>
-              <button 
-                disabled={false}
-                onClick={() => setPageLbc(pageLbc + 1)}
-                style={{padding: '6px 12px', cursor: 'pointer', opacity: 1}}
-              >
-                Suivant →
-              </button>
-            </div>
           )}
         </div>
 
@@ -230,27 +192,76 @@ function App() {
           {vintedItems.length === 0 && !loading && (
             <p style={{color: '#999'}}>Aucun résultat Vinted</p>
           )}
-          {vintedItems.length > 0 && (
-            <div style={{display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12}}>
-              <button 
-                disabled={pageVinted === 1}
-                onClick={() => setPageVinted(pageVinted - 1)}
-                style={{padding: '6px 12px', cursor: pageVinted === 1 ? 'not-allowed' : 'pointer', opacity: pageVinted === 1 ? 0.5 : 1}}
-              >
-                ← Précédent
-              </button>
-              <span style={{padding: '6px 0'}}>Page {pageVinted}</span>
-              <button 
-                disabled={vintedItems.length < 40}
-                onClick={() => setPageVinted(pageVinted + 1)}
-                style={{padding: '6px 12px', cursor: vintedItems.length < 40 ? 'not-allowed' : 'pointer', opacity: vintedItems.length < 40 ? 0.5 : 1}}
-              >
-                Suivant →
-              </button>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Navigation globale pour tous les sites */}
+      {(ebayItems.length > 0 || leboncoinItems.length > 0 || vintedItems.length > 0) && (
+        <div style={{display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24, paddingBottom: 16}}>
+          <button 
+            disabled={pageEbay === 1 && pageLbc === 1 && pageVinted === 1}
+            onClick={() => {
+              setPageEbay(Math.max(1, pageEbay - 1));
+              setPageLbc(Math.max(1, pageLbc - 1));
+              setPageVinted(Math.max(1, pageVinted - 1));
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            style={{
+              padding: '10px 20px',
+              fontSize: '16px',
+              cursor: (pageEbay === 1 && pageLbc === 1 && pageVinted === 1) ? 'not-allowed' : 'pointer',
+              opacity: (pageEbay === 1 && pageLbc === 1 && pageVinted === 1) ? 0.5 : 1
+            }}
+          >
+            ← Page précédente
+          </button>
+          <span style={{padding: '10px 0', fontSize: '16px', fontWeight: 500}}>
+            Page {Math.max(pageEbay, pageLbc, pageVinted)}
+          </span>
+          <button 
+            onClick={() => {
+              setPageEbay(pageEbay + 1);
+              setPageLbc(pageLbc + 1);
+              setPageVinted(pageVinted + 1);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            style={{
+              padding: '10px 20px',
+              fontSize: '16px',
+              cursor: 'pointer'
+            }}
+          >
+            Page suivante →
+          </button>
+        </div>
+      )}
+
+      {/* Bouton flottant retour en haut */}
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          padding: '12px 16px',
+          fontSize: '20px',
+          backgroundColor: '#0a66c2',
+          color: 'white',
+          border: 'none',
+          borderRadius: '50%',
+          cursor: 'pointer',
+          boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+          width: '50px',
+          height: '50px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}
+        title="Retour en haut"
+      >
+        ↑
+      </button>
     </div>
   );
 }
