@@ -116,10 +116,12 @@ app.all('/api/ebay/notifications/account-deletion', (req, res) => {
 app.get('/api/leboncoin/search', async (req, res) => {
   let browser;
   try {
-    const { query = 'drone' } = req.query;
-    const searchUrl = `https://www.leboncoin.fr/recherche?text=${encodeURIComponent(query)}`;
+    const { query = 'drone', page = '1' } = req.query;
+    const pageNum = Math.max(1, parseInt(page) || 1);
 
-    console.log(`🤖 Scraping LeBonCoin with Puppeteer for: "${query}"`);
+    const searchUrl = `https://www.leboncoin.fr/recherche?text=${encodeURIComponent(query)}&page=${pageNum}`;
+
+    console.log(`🤖 Scraping LeBonCoin with Puppeteer for: "${query}" (page ${pageNum})`);
 
     browser = await puppeteer.launch({
       headless: true,
@@ -131,31 +133,25 @@ app.get('/api/leboncoin/search', async (req, res) => {
       ]
     });
 
-    const page = await browser.newPage();
+    const page_obj = await browser.newPage();
     
     // Set realistic viewport and user agent
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    await page_obj.setViewport({ width: 1920, height: 1080 });
+    await page_obj.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     // Navigate and wait for network to be idle
-    await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page_obj.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
     
     // Wait for ads to load (adjust selector if needed)
-    await page.waitForSelector('[data-test-id="ad"]', { timeout: 15000 });
+    await page_obj.waitForSelector('[data-test-id="ad"]', { timeout: 15000 });
 
     // Extract data from the page
-    const pageData = await page.evaluate(() => {
+    const pageData = await page_obj.evaluate(() => {
       const results = [];
       const adCards = document.querySelectorAll('[data-test-id="ad"]');
-      const debugData = {}; // Store first card data
       
-      adCards.forEach((card, idx) => {
+      adCards.forEach((card) => {
         try {
-          // DEBUG: Capture full first card
-          if (idx === 0) {
-            debugData.firstCardText = card.textContent;
-          }
-          
           // Title from article aria-label or h3
           const article = card.querySelector('article[data-test-id="ad"]') || card;
           let title = article.getAttribute('aria-label');
@@ -197,7 +193,7 @@ app.get('/api/leboncoin/search', async (req, res) => {
         }
       });
       
-      return { results, debugData };
+      return results;
     });
 
     // Log debug data (in Node context, not browser context)
@@ -207,14 +203,15 @@ app.get('/api/leboncoin/search', async (req, res) => {
     //   console.log('=== END ===');
     // }
 
-    const items = pageData.results;
+    const items = pageData;
     await browser.close();
-    console.log(`✅ Found ${items.length} items on LeBonCoin via Puppeteer`);
+    console.log(`✅ Found ${items.length} items on LeBonCoin page ${pageNum}`);
     
     res.json({ 
       success: true, 
-      count: items.length, 
-      items: items.slice(0, 20), 
+      count: items.length,
+      page: pageNum,
+      items: items, 
       source: 'LeBonCoin (Puppeteer)' 
     });
 
@@ -296,11 +293,16 @@ app.get('/api/vinted/debug', async (req, res) => {
 app.get('/api/vinted/search', async (req, res) => {
   let browser;
   try {
-    const { query = 'drone' } = req.query;
+    const { query = 'drone', page = '1' } = req.query;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const itemsPerPage = 40;
+    const startIdx = (pageNum - 1) * itemsPerPage;
+    const endIdx = startIdx + itemsPerPage;
+
     // Vinted search URL format, category 3002 = Electronics, Video Games
     const searchUrl = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(query)}&catalog[]=3002`;
 
-    console.log(`🤖 Scraping Vinted with Puppeteer for: "${query}"`);
+    console.log(`🤖 Scraping Vinted with Puppeteer for: "${query}" (page ${pageNum})`);
 
     browser = await puppeteer.launch({
       headless: true,
@@ -312,16 +314,16 @@ app.get('/api/vinted/search', async (req, res) => {
       ]
     });
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    const page_obj = await browser.newPage();
+    await page_obj.setViewport({ width: 1920, height: 1080 });
+    await page_obj.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
-    await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page_obj.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
     
     // Wait for items to load
-    await page.waitForSelector('a[href*="/items/"]', { timeout: 15000 });
+    await page_obj.waitForSelector('a[href*="/items/"]', { timeout: 15000 });
 
-    const pageData = await page.evaluate(() => {
+    const pageData = await page_obj.evaluate(() => {
       const results = [];
       const links = document.querySelectorAll('a[href*="/items/"]');
       
@@ -408,10 +410,17 @@ app.get('/api/vinted/search', async (req, res) => {
     await browser.close();
     console.log(`✅ Found ${pageData.length} items on Vinted via Puppeteer`);
     
+    const totalItems = pageData.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const paginatedItems = pageData.slice(startIdx, endIdx);
+    
     res.json({ 
       success: true, 
-      count: pageData.length, 
-      items: pageData.slice(0, 20), 
+      count: paginatedItems.length,
+      total: totalItems,
+      page: pageNum,
+      totalPages: totalPages,
+      items: paginatedItems, 
       source: 'Vinted (Puppeteer)' 
     });
 
@@ -452,7 +461,7 @@ app.get('/api/ebay/search', async (req, res) => {
         'RESPONSE-DATA-FORMAT': 'JSON',
         'REST-PAYLOAD': true,
         'keywords': query,
-        'paginationInput.entriesPerPage': '20',
+        'paginationInput.entriesPerPage': '40',
         'GLOBAL-ID': 'EBAY-FR',
       },
       timeout: 12000
@@ -510,7 +519,10 @@ app.get('/api/ebay/search', async (req, res) => {
 // eBay Browse API endpoint (OAuth, production-ready path)
 app.get('/api/ebay/browse', async (req, res) => {
   try {
-    const { query = 'cabela 2013 wii u' } = req.query;
+    const { query = 'cabela 2013 wii u', page = '1' } = req.query;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const itemsPerPage = 40;
+    const offset = (pageNum - 1) * itemsPerPage;
 
     if (!EBAY_APP_ID || !EBAY_CLIENT_SECRET) {
       return res.status(500).json({ success: false, error: 'Missing EBAY_APP_ID or EBAY_CLIENT_SECRET' });
@@ -524,9 +536,10 @@ app.get('/api/ebay/browse', async (req, res) => {
     const response = await axios.get(apiUrl, {
       params: {
         q: query,
-        limit: 20,
+        limit: 40,
+        offset: offset,
         marketplace_id: 'EBAY_FR',
-        filter: 'itemLocationCountry:FR', // Limite à articles localisés en France
+        filter: 'itemLocationCountry:FR',
       },
       headers: {
         Authorization: `Bearer ${token}`,
@@ -547,9 +560,15 @@ app.get('/api/ebay/browse', async (req, res) => {
       shipping: it?.shippingOptions?.[0]?.shippingCost ? `${it.shippingOptions[0].shippingCost.value} ${it.shippingOptions[0].shippingCost.currency}` : null,
     }));
 
+    const totalItems = response.data?.total || items.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+
     res.json({
       success: true,
       count: items.length,
+      total: totalItems,
+      page: pageNum,
+      totalPages: totalPages,
       items,
       source: EBAY_SANDBOX ? 'Browse API Sandbox' : 'Browse API Production',
     });
