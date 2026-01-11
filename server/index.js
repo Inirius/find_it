@@ -353,14 +353,38 @@ app.get('/api/vinted/search', async (req, res) => {
             price = priceMatches[0].trim();
           }
 
-          // Find image - look in parent article or nearby div
+          // Find image - look in multiple places (boosted vs non-boosted items may have different structures)
           let image = null;
-          const parentArticle = link.closest('article');
-          if (parentArticle) {
-            const img = parentArticle.querySelector('img');
-            if (img) {
-              image = img.getAttribute('src');
+          
+          // First try: image directly in the link
+          let img = link.querySelector('img');
+          
+          // Second try: image in parent article
+          if (!img) {
+            const parentArticle = link.closest('article');
+            if (parentArticle) {
+              img = parentArticle.querySelector('img');
             }
+          }
+          
+          // Third try: image in parent div (sometimes images are in a wrapper div)
+          if (!img) {
+            const parentDiv = link.closest('div');
+            if (parentDiv) {
+              img = parentDiv.querySelector('img');
+            }
+          }
+          
+          // Fourth try: look for image in sibling elements
+          if (!img) {
+            const parent = link.parentElement;
+            if (parent) {
+              img = parent.querySelector('img');
+            }
+          }
+          
+          if (img) {
+            image = img.getAttribute('src') || img.getAttribute('data-src');
           }
 
           if (title && url) {
