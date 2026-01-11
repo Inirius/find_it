@@ -295,10 +295,10 @@ app.get('/api/vinted/search', async (req, res) => {
   try {
     const { query = 'drone', page = '1' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const itemsPerPage = 40;
+    const itemsPerPage = 37;
     
     // Calculate which Vinted page to load based on frontend page number
-    // Each Vinted page has ~156 items = ~4 frontend pages (156/40 = 3.9)
+    // Each Vinted page has ~156 items = ~4 frontend pages (156/37 = 4.2)
     // We'll dynamically calculate after scraping
     const estimatedItemsPerVintedPage = 150; // Rough estimate
     const estimatedPagesPerVintedPage = Math.ceil(estimatedItemsPerVintedPage / itemsPerPage);
@@ -472,7 +472,7 @@ app.get('/api/ebay/search', async (req, res) => {
         'RESPONSE-DATA-FORMAT': 'JSON',
         'REST-PAYLOAD': true,
         'keywords': query,
-        'paginationInput.entriesPerPage': '40',
+        'paginationInput.entriesPerPage': '37',
         'GLOBAL-ID': 'EBAY-FR',
       },
       timeout: 12000
@@ -532,7 +532,7 @@ app.get('/api/ebay/browse', async (req, res) => {
   try {
     const { query = 'cabela 2013 wii u', page = '1' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const itemsPerPage = 40;
+    const itemsPerPage = 37;
     const offset = (pageNum - 1) * itemsPerPage;
 
     if (!EBAY_APP_ID || !EBAY_CLIENT_SECRET) {
@@ -549,7 +549,7 @@ app.get('/api/ebay/browse', async (req, res) => {
     const response = await axios.get(apiUrl, {
       params: {
         q: query,
-        limit: 40,
+        limit: 37,
         offset: offset,
         marketplace_id: 'EBAY_FR',
         filter: 'itemLocationCountry:FR',

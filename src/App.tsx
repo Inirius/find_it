@@ -219,6 +219,11 @@ function App() {
             Page {Math.max(pageEbay, pageLbc, pageVinted)}
           </span>
           <button 
+            disabled={
+              (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
+              (pageVinted * 40 >= totalVinted || totalVinted === 0) && 
+              leboncoinItems.length === 0
+            }
             onClick={() => {
               setPageEbay(pageEbay + 1);
               setPageLbc(pageLbc + 1);
@@ -228,7 +233,16 @@ function App() {
             style={{
               padding: '10px 20px',
               fontSize: '16px',
-              cursor: 'pointer'
+              cursor: (
+                (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
+                (pageVinted * 40 >= totalVinted || totalVinted === 0) && 
+                leboncoinItems.length === 0
+              ) ? 'not-allowed' : 'pointer',
+              opacity: (
+                (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
+                (pageVinted * 40 >= totalVinted || totalVinted === 0) && 
+                leboncoinItems.length === 0
+              ) ? 0.5 : 1
             }}
           >
             Page suivante →
@@ -245,7 +259,7 @@ function App() {
           right: '20px',
           padding: '12px 16px',
           fontSize: '20px',
-          backgroundColor: '#0a66c2',
+          backgroundColor: '#242f3fff',
           color: 'white',
           border: 'none',
           borderRadius: '50%',
