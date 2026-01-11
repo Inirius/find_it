@@ -229,6 +229,179 @@ app.get('/api/leboncoin/search', async (req, res) => {
   }
 });
 
+// Vinted debug endpoint - find correct selectors
+app.get('/api/vinted/debug', async (req, res) => {
+  let browser;
+  try {
+    const { query = 'drone' } = req.query;
+    const searchUrl = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(query)}`;
+
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled'
+      ]
+    });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+
+    const pageInfo = await page.evaluate(() => {
+      const selectors = {
+        'a[href*="/items/"]': document.querySelectorAll('a[href*="/items/"]').length,
+        'article': document.querySelectorAll('article').length,
+        '[class*="item"]': document.querySelectorAll('[class*="item"]').length,
+        '[class*="product"]': document.querySelectorAll('[class*="product"]').length,
+        '[data-testid*="item"]': document.querySelectorAll('[data-testid*="item"]').length,
+        'li': document.querySelectorAll('li').length,
+      };
+
+      const firstArticle = document.querySelector('article');
+      const firstLink = document.querySelector('a[href*="/items/"]');
+
+      return {
+        title: document.title,
+        url: window.location.href,
+        selectorCounts: selectors,
+        firstArticleHTML: firstArticle?.outerHTML.substring(0, 500),
+        firstLinkHTML: firstLink?.outerHTML.substring(0, 500),
+      };
+    });
+
+    await browser.close();
+    
+    res.json({ 
+      success: true,
+      message: 'Vinted page structure debug',
+      pageInfo
+    });
+
+  } catch (error) {
+    if (browser) await browser.close();
+    console.error('Vinted debug error:', error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
+// Vinted scraping with Puppeteer
+app.get('/api/vinted/search', async (req, res) => {
+  let browser;
+  try {
+    const { query = 'drone' } = req.query;
+    // Vinted search URL format, category 3002 = Electronics, Video Games
+    const searchUrl = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(query)}&catalog[]=3002`;
+
+    console.log(`🤖 Scraping Vinted with Puppeteer for: "${query}"`);
+
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled'
+      ]
+    });
+
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Wait for items to load
+    await page.waitForSelector('a[href*="/items/"]', { timeout: 15000 });
+
+    const pageData = await page.evaluate(() => {
+      const results = [];
+      const links = document.querySelectorAll('a[href*="/items/"]');
+      
+      links.forEach((link) => {
+        try {
+          const url = link.getAttribute('href');
+          const titleAttr = link.getAttribute('title');
+          
+          if (!url || !titleAttr) return;
+
+          // Extract title from the title attribute (before first comma)
+          let title = titleAttr.split(',')[0]?.trim();
+          
+          // Extract state/condition from title attribute (like price extraction)
+          let shipping = null;
+          const stateMatch = titleAttr.match(/état:\s*([^,]+)/);
+          if (stateMatch) {
+            shipping = stateMatch[1].trim();
+          }
+          
+          // Extract price from title attribute - get ALL prices and take the second (with fees)
+          let price = null;
+          const priceMatches = titleAttr.match(/(\d+,\d{2}\s*€)/g);
+          if (priceMatches && priceMatches.length > 1) {
+            // Second price (with fees like Protection acheteurs)
+            price = priceMatches[1].trim();
+          } else if (priceMatches && priceMatches.length === 1) {
+            // Fallback to first price if only one exists
+            price = priceMatches[0].trim();
+          }
+
+          // Find image - look in parent article or nearby div
+          let image = null;
+          const parentArticle = link.closest('article');
+          if (parentArticle) {
+            const img = parentArticle.querySelector('img');
+            if (img) {
+              image = img.getAttribute('src');
+            }
+          }
+
+          if (title && url) {
+            results.push({ 
+              title, 
+              url, 
+              image, 
+              alt: title, 
+              price, 
+              shipping
+            });
+          }
+        } catch (e) {
+          console.warn('Vinted parse error:', e.message);
+        }
+      });
+      
+      return results;
+    });
+
+    await browser.close();
+    console.log(`✅ Found ${pageData.length} items on Vinted via Puppeteer`);
+    
+    res.json({ 
+      success: true, 
+      count: pageData.length, 
+      items: pageData.slice(0, 20), 
+      source: 'Vinted (Puppeteer)' 
+    });
+
+  } catch (error) {
+    if (browser) await browser.close();
+    console.error('Vinted Puppeteer error:', error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message, 
+      details: 'Failed to scrape Vinted with Puppeteer' 
+    });
+  }
+});
+
 // eBay scraping endpoint
 app.get('/api/ebay/search', async (req, res) => {
   try {
