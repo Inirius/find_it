@@ -88,6 +88,26 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Root endpoint used as a public, verifiable landing page
+app.get('/', (req, res) => {
+  res.type('html').send(`<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Find-it API</title></head>
+<body>
+  <h1>Find-it API</h1>
+  <p>Status: OK</p>
+  <p>Primary channel: https://find-it-server.onrender.com</p>
+  <ul>
+    <li>Health: /health</li>
+    <li>eBay: /api/ebay/browse?query=drone</li>
+    <li>LeBonCoin: /api/leboncoin/search?query=drone</li>
+    <li>Vinted: /api/vinted/search?query=drone</li>
+    <li>Rakuten: /api/rakuten/search?query=drone</li>
+  </ul>
+</body>
+</html>`);
+});
+
 // Marketplace Account Deletion notification endpoint (push from eBay)
 // Configure this URL in eBay Alerts & Notifications page
 app.all('/api/ebay/notifications/account-deletion', (req, res) => {
@@ -470,6 +490,102 @@ app.get('/api/vinted/search', async (req, res) => {
       success: false, 
       error: error.message, 
       details: 'Failed to scrape Vinted with Puppeteer' 
+    });
+  }
+});
+
+// Rakuten scraping (HTML via axios + cheerio)
+app.get('/api/rakuten/search', async (req, res) => {
+  try {
+    const { query = 'drone', page = '1' } = req.query;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const searchUrl = `https://fr.shopping.rakuten.com/s/m?q=${encodeURIComponent(query)}&p=${pageNum}`;
+
+    console.log(`🛒 Scraping Rakuten page ${pageNum} for: "${query}"`);
+
+    const { data: html } = await axios.get(searchUrl, {
+      timeout: 15000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7'
+      }
+    });
+
+    const $ = cheerio.load(html);
+    const items = [];
+
+    $('a[href*="/offer/buy/"], a[href*="/offer/mcp/"]').each((_, el) => {
+      if (items.length >= 40) return; // cap to 40
+      const link = $(el);
+      const rawUrl = link.attr('href');
+      const title = (link.attr('title') || link.find('h2, h3, .navsrp-card-title, .navsrp-offer-title').first().text() || '').trim();
+
+      if (!rawUrl || !title) return;
+
+      const parent = link.closest('article').length ? link.closest('article') : link.parent();
+      const img = link.find('img').attr('src') || link.find('img').attr('data-src') || null;
+
+      let price = parent.find('[itemprop="price"], .price, .navsrp-price, .offer-price, .u-color-primary').first().text().trim();
+      if (!price) {
+        const priceAttr = parent.find('[itemprop="price"]').attr('content');
+        if (priceAttr) price = `${priceAttr} €`;
+      }
+
+      let shipping = parent.find('.shipping, .delivery, .navsrp-shipping, [data-testid*="shipping"], .navsrp-offer-delivery').first().text().trim();
+      if (!shipping) shipping = null;
+
+      const absoluteUrl = rawUrl.startsWith('http') ? rawUrl : `https://fr.shopping.rakuten.com${rawUrl}`;
+
+      items.push({
+        title: title || null,
+        url: absoluteUrl,
+        image: img,
+        alt: title || null,
+        price: price || null,
+        shipping,
+      });
+    });
+
+    // Deduplicate by URL
+    const seen = new Set();
+    const deduped = [];
+    for (const it of items) {
+      if (it.url && !seen.has(it.url)) {
+        seen.add(it.url);
+        deduped.push(it);
+      }
+    }
+
+    if (deduped.length === 0) {
+      return res.json({
+        success: true,
+        source: 'Rakuten (fallback)',
+        items: [
+          {
+            title: `[DEMO] Résultat Rakuten pour "${query}"`,
+            url: 'https://fr.shopping.rakuten.com',
+            image: 'https://via.placeholder.com/300x300.png?text=Rakuten',
+            alt: 'Rakuten',
+            price: '-',
+            shipping: null,
+          }
+        ],
+        total: 1,
+      });
+    }
+
+    return res.json({
+      success: true,
+      source: 'Rakuten',
+      items: deduped.slice(0, 40),
+      total: deduped.length,
+    });
+  } catch (error) {
+    console.error('Rakuten scraping error:', error.message);
+    return res.status(200).json({
+      success: false,
+      error: 'rakuten-scrape-error',
+      details: error.message,
     });
   }
 });

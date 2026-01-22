@@ -17,6 +17,7 @@ function App() {
   const [ebayItems, setEbayItems] = useState<Item[]>([]);
   const [leboncoinItems, setLeboncoinItems] = useState<Item[]>([]);
   const [vintedItems, setVintedItems] = useState<Item[]>([]);
+  const [rakutenItems, setRakutenItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   
@@ -24,26 +25,30 @@ function App() {
   const [pageEbay, setPageEbay] = useState(1);
   const [pageLbc, setPageLbc] = useState(1);
   const [pageVinted, setPageVinted] = useState(1);
+  const [pageRakuten, setPageRakuten] = useState(1);
   
   // Total items/pages for each source
   const [totalEbay, setTotalEbay] = useState(0);
   const [totalLbc, setTotalLbc] = useState(0);
   const [totalVinted, setTotalVinted] = useState(0);
+  const [totalRakuten, setTotalRakuten] = useState(0);
 
-  const fetchItems = async (q: string, pEbay = 1, pLbc = 1, pVinted = 1) => {
+  const fetchItems = async (q: string, pEbay = 1, pLbc = 1, pVinted = 1, pRakuten = 1) => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch from all three APIs in parallel with pagination
-      const [ebayRes, leboncoinRes, vintedRes] = await Promise.all([
+      // Fetch from all four APIs in parallel with pagination
+      const [ebayRes, leboncoinRes, vintedRes, rakutenRes] = await Promise.all([
         fetch(`http://localhost:3002/api/ebay/browse?query=${encodeURIComponent(q)}&page=${pEbay}`),
         fetch(`http://localhost:3002/api/leboncoin/search?query=${encodeURIComponent(q)}&page=${pLbc}`),
-        fetch(`http://localhost:3002/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}`)
+        fetch(`http://localhost:3002/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}`),
+        fetch(`http://localhost:3002/api/rakuten/search?query=${encodeURIComponent(q)}&page=${pRakuten}`)
       ]);
 
       let ebayData = null;
       let leboncoinData = null;
       let vintedData = null;
+      let rakutenData = null;
 
       if (ebayRes.ok) {
         ebayData = await ebayRes.json();
@@ -87,17 +92,33 @@ function App() {
         setTotalVinted(0);
       }
 
+      if (rakutenRes.ok) {
+        rakutenData = await rakutenRes.json();
+        if (rakutenData.success) {
+          setRakutenItems(rakutenData.items || []);
+          setTotalRakuten(rakutenData.total || 0);
+        } else {
+          setRakutenItems([]);
+          setTotalRakuten(0);
+        }
+      } else {
+        setRakutenItems([]);
+        setTotalRakuten(0);
+      }
+
       // Show error only if all sources failed
-      if (!ebayData?.success && !leboncoinData?.success && !vintedData?.success) {
+      if (!ebayData?.success && !leboncoinData?.success && !vintedData?.success && !rakutenData?.success) {
         setError('Erreur lors de la recherche - assurez-vous que le serveur backend fonctionne sur le port 3002');
       }
     } catch (err: any) {
       setEbayItems([]);
       setLeboncoinItems([]);
       setVintedItems([]);
+      setRakutenItems([]);
       setTotalEbay(0);
       setTotalLbc(0);
       setTotalVinted(0);
+      setTotalRakuten(0);
       setError(String(err || 'Fetch error - ensure backend is running on port 3002'));
     } finally {
       setLoading(false);
@@ -105,15 +126,16 @@ function App() {
   };
 
   useEffect(() => {
-    fetchItems(query, pageEbay, pageLbc, pageVinted);
-  }, [pageEbay, pageLbc, pageVinted]);
+    fetchItems(query, pageEbay, pageLbc, pageVinted, pageRakuten);
+  }, [pageEbay, pageLbc, pageVinted, pageRakuten]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPageEbay(1);
     setPageLbc(1);
     setPageVinted(1);
-    fetchItems(query, 1, 1, 1);
+    setPageRakuten(1);
+    fetchItems(query, 1, 1, 1, 1);
   };
 
   return (
@@ -135,11 +157,11 @@ function App() {
       {loading && <div>Chargement...</div>}
       {error && <div style={{color: 'red'}}><strong>Erreur:</strong> {error}</div>}
 
-      {!loading && !error && ebayItems.length === 0 && leboncoinItems.length === 0 && vintedItems.length === 0 && (
+      {!loading && !error && ebayItems.length === 0 && leboncoinItems.length === 0 && vintedItems.length === 0 && rakutenItems.length === 0 && (
         <div>Aucun résultat.</div>
       )}
 
-      <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16}}>
+      <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16}}>
         <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
           <h2 style={{fontSize: '18px', marginBottom: 0}}>eBay France</h2>
           {ebayItems.map((item, index) => (
@@ -193,41 +215,62 @@ function App() {
             <p style={{color: '#999'}}>Aucun résultat Vinted</p>
           )}
         </div>
+
+        <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+          <h2 style={{fontSize: '18px', marginBottom: 0}}>Rakuten</h2>
+          {rakutenItems.map((item, index) => (
+            <LeboncoinCard
+              key={index}
+              title={item.title}
+              url={item.url}
+              image={item.image}
+              alt={item.alt}
+              price={item.price}
+              shipping={item.shipping}
+            />
+          ))}
+          {rakutenItems.length === 0 && !loading && (
+            <p style={{color: '#999'}}>Aucun résultat Rakuten</p>
+          )}
+        </div>
       </div>
 
       {/* Navigation globale pour tous les sites */}
-      {(ebayItems.length > 0 || leboncoinItems.length > 0 || vintedItems.length > 0) && (
+      {(ebayItems.length > 0 || leboncoinItems.length > 0 || vintedItems.length > 0 || rakutenItems.length > 0) && (
         <div style={{display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24, paddingBottom: 16}}>
           <button 
-            disabled={pageEbay === 1 && pageLbc === 1 && pageVinted === 1}
+            disabled={pageEbay === 1 && pageLbc === 1 && pageVinted === 1 && pageRakuten === 1}
             onClick={() => {
               setPageEbay(Math.max(1, pageEbay - 1));
               setPageLbc(Math.max(1, pageLbc - 1));
               setPageVinted(Math.max(1, pageVinted - 1));
+              setPageRakuten(Math.max(1, pageRakuten - 1));
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             style={{
               padding: '10px 20px',
               fontSize: '16px',
-              cursor: (pageEbay === 1 && pageLbc === 1 && pageVinted === 1) ? 'not-allowed' : 'pointer',
-              opacity: (pageEbay === 1 && pageLbc === 1 && pageVinted === 1) ? 0.5 : 1
+              cursor: (pageEbay === 1 && pageLbc === 1 && pageVinted === 1 && pageRakuten === 1) ? 'not-allowed' : 'pointer',
+              opacity: (pageEbay === 1 && pageLbc === 1 && pageVinted === 1 && pageRakuten === 1) ? 0.5 : 1
             }}
           >
             ← Page précédente
           </button>
           <span style={{padding: '10px 0', fontSize: '16px', fontWeight: 500}}>
-            Page {Math.max(pageEbay, pageLbc, pageVinted)}
+            Page {Math.max(pageEbay, pageLbc, pageVinted, pageRakuten)}
           </span>
           <button 
             disabled={
               (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
               (pageVinted * 40 >= totalVinted || totalVinted === 0) && 
+              (pageRakuten * 40 >= totalRakuten || totalRakuten === 0) &&
               leboncoinItems.length === 0
             }
             onClick={() => {
               setPageEbay(pageEbay + 1);
               setPageLbc(pageLbc + 1);
               setPageVinted(pageVinted + 1);
+              setPageRakuten(pageRakuten + 1);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             style={{
@@ -236,11 +279,13 @@ function App() {
               cursor: (
                 (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
                 (pageVinted * 40 >= totalVinted || totalVinted === 0) && 
+                (pageRakuten * 40 >= totalRakuten || totalRakuten === 0) &&
                 leboncoinItems.length === 0
               ) ? 'not-allowed' : 'pointer',
               opacity: (
                 (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
                 (pageVinted * 40 >= totalVinted || totalVinted === 0) && 
+                (pageRakuten * 40 >= totalRakuten || totalRakuten === 0) &&
                 leboncoinItems.length === 0
               ) ? 0.5 : 1
             }}
