@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: find-it-server
+    runtime: node
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: PORT
+        value: 3002
+      - key: EBAY_APP_ID
+        sync: false
+      - key: EBAY_CERT_ID
+        sync: false
+      - key: EBAY_CLIENT_SECRET
+        sync: false
+      - key: EBAY_NOTIFICATION_TOKEN
+        sync: false
+      - key: EBAY_NOTIFICATION_ENDPOINT
+        value: https://find-it-server.onrender.com/api/ebay/notifications/account-deletion
+      - key: EBAY_SANDBOX
+        value: false
+      - key: EBAY_SITE_ID
+        value: 71
