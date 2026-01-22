@@ -21,3 +21,7 @@ services:
         value: false
       - key: EBAY_SITE_ID
         value: 71
+      - key: KEEPALIVE_URL
+        value: https://find-it-server.onrender.com/health
+      - key: KEEPALIVE_INTERVAL_MS
+        value: 240000

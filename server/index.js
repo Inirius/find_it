@@ -23,6 +23,8 @@ const EBAY_SITE_ID = process.env.EBAY_SITE_ID || '71'; // 71 = France
 const EBAY_NOTIFICATION_TOKEN = process.env.EBAY_NOTIFICATION_TOKEN || null;
 const EBAY_NOTIFICATION_ENDPOINT = process.env.EBAY_NOTIFICATION_ENDPOINT || null; // Full HTTPS URL configured in eBay portal
 const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET || null;
+const KEEPALIVE_URL = process.env.KEEPALIVE_URL || null;
+const KEEPALIVE_INTERVAL_MS = Number(process.env.KEEPALIVE_INTERVAL_MS || 240000); // Default: 4 minutes
 
 // Simple in-memory token cache for Browse API
 let browseToken = null;
@@ -55,6 +57,22 @@ async function getBrowseOAuthToken() {
   browseToken = res.data.access_token;
   browseTokenExp = Date.now() + (res.data.expires_in || 7200) * 1000;
   return browseToken;
+}
+
+// Optional keep-alive ping to prevent platform sleep (e.g., Render free tier)
+function startKeepAlive() {
+  if (!KEEPALIVE_URL) return;
+  const ping = async () => {
+    try {
+      await axios.get(KEEPALIVE_URL, { timeout: 4000 });
+      console.log('♻️ Keep-alive ping OK ->', KEEPALIVE_URL);
+    } catch (err) {
+      console.warn('♻️ Keep-alive ping failed:', err.message);
+    }
+  };
+  // Initial ping immediately, then every KEEPALIVE_INTERVAL_MS
+  ping();
+  setInterval(ping, KEEPALIVE_INTERVAL_MS);
 }
 
 // Enable CORS for the frontend
@@ -669,5 +687,6 @@ app.listen(PORT, () => {
   } else {
     console.log('   ⚠️  No EBAY_NOTIFICATION_TOKEN found in .env');
   }
+  startKeepAlive();
 });
 
