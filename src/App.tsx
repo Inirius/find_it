@@ -13,6 +13,9 @@ type Item = {
 };
 
 function App() {
+  // Feature flag: disable Rakuten until ScraperAPI plan supports rendering on protected domains
+  const RAKUTEN_ENABLED = false;
+  
   const [query, setQuery] = useState('drone');
   const [ebayItems, setEbayItems] = useState<Item[]>([]);
   const [leboncoinItems, setLeboncoinItems] = useState<Item[]>([]);
@@ -37,20 +40,28 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      // Fetch from all four APIs in parallel with pagination
-      const [ebayRes, leboncoinRes, vintedRes, rakutenRes] = await Promise.all([
+      // Fetch from available APIs in parallel with pagination
+      const fetchPromises = [
         fetch(`http://localhost:3002/api/ebay/browse?query=${encodeURIComponent(q)}&page=${pEbay}`),
         fetch(`http://localhost:3002/api/leboncoin/search?query=${encodeURIComponent(q)}&page=${pLbc}`),
-        fetch(`http://localhost:3002/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}`),
-        fetch(`http://localhost:3002/api/rakuten/search?query=${encodeURIComponent(q)}&page=${pRakuten}`)
-      ]);
+        fetch(`http://localhost:3002/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}`)
+      ];
+      
+      if (RAKUTEN_ENABLED) {
+        fetchPromises.push(fetch(`http://localhost:3002/api/rakuten/search?query=${encodeURIComponent(q)}&page=${pRakuten}`));
+      }
+      
+      const responses = await Promise.all(fetchPromises);
+      const [ebayRes, leboncoinRes, vintedRes, rakutenRes] = RAKUTEN_ENABLED 
+        ? responses 
+        : [...responses, null];
 
       let ebayData = null;
       let leboncoinData = null;
       let vintedData = null;
       let rakutenData = null;
 
-      if (ebayRes.ok) {
+      if (ebayRes && ebayRes.ok) {
         ebayData = await ebayRes.json();
         if (ebayData.success) {
           setEbayItems(ebayData.items || []);
@@ -64,7 +75,7 @@ function App() {
         setTotalEbay(0);
       }
 
-      if (leboncoinRes.ok) {
+      if (leboncoinRes && leboncoinRes.ok) {
         leboncoinData = await leboncoinRes.json();
         if (leboncoinData.success) {
           setLeboncoinItems(leboncoinData.items || []);
@@ -78,7 +89,7 @@ function App() {
         setTotalLbc(0);
       }
 
-      if (vintedRes.ok) {
+      if (vintedRes && vintedRes.ok) {
         vintedData = await vintedRes.json();
         if (vintedData.success) {
           setVintedItems(vintedData.items || []);
@@ -92,7 +103,7 @@ function App() {
         setTotalVinted(0);
       }
 
-      if (rakutenRes.ok) {
+      if (rakutenRes && rakutenRes.ok) {
         rakutenData = await rakutenRes.json();
         if (rakutenData.success) {
           setRakutenItems(rakutenData.items || []);
@@ -107,7 +118,7 @@ function App() {
       }
 
       // Show error only if all sources failed
-      if (!ebayData?.success && !leboncoinData?.success && !vintedData?.success && !rakutenData?.success) {
+      if (!ebayData?.success && !leboncoinData?.success && !vintedData?.success && (!RAKUTEN_ENABLED || !rakutenData?.success)) {
         setError('Erreur lors de la recherche - assurez-vous que le serveur backend fonctionne sur le port 3002');
       }
     } catch (err: any) {
@@ -216,35 +227,37 @@ function App() {
           )}
         </div>
 
-        <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
-          <h2 style={{fontSize: '18px', marginBottom: 0}}>Rakuten</h2>
-          {rakutenItems.map((item, index) => (
-            <LeboncoinCard
-              key={index}
-              title={item.title}
-              url={item.url}
-              image={item.image}
-              alt={item.alt}
-              price={item.price}
-              shipping={item.shipping}
-            />
-          ))}
-          {rakutenItems.length === 0 && !loading && (
-            <p style={{color: '#999'}}>Aucun résultat Rakuten</p>
-          )}
-        </div>
+        {RAKUTEN_ENABLED && (
+          <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
+            <h2 style={{fontSize: '18px', marginBottom: 0}}>Rakuten</h2>
+            {rakutenItems.map((item, index) => (
+              <LeboncoinCard
+                key={index}
+                title={item.title}
+                url={item.url}
+                image={item.image}
+                alt={item.alt}
+                price={item.price}
+                shipping={item.shipping}
+              />
+            ))}
+            {rakutenItems.length === 0 && !loading && (
+              <p style={{color: '#999'}}>Aucun résultat Rakuten</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Navigation globale pour tous les sites */}
-      {(ebayItems.length > 0 || leboncoinItems.length > 0 || vintedItems.length > 0 || rakutenItems.length > 0) && (
+      {(ebayItems.length > 0 || leboncoinItems.length > 0 || vintedItems.length > 0 || (RAKUTEN_ENABLED && rakutenItems.length > 0)) && (
         <div style={{display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24, paddingBottom: 16}}>
           <button 
-            disabled={pageEbay === 1 && pageLbc === 1 && pageVinted === 1 && pageRakuten === 1}
+            disabled={pageEbay === 1 && pageLbc === 1 && pageVinted === 1 && (!RAKUTEN_ENABLED || pageRakuten === 1)}
             onClick={() => {
               setPageEbay(Math.max(1, pageEbay - 1));
               setPageLbc(Math.max(1, pageLbc - 1));
               setPageVinted(Math.max(1, pageVinted - 1));
-              setPageRakuten(Math.max(1, pageRakuten - 1));
+              if (RAKUTEN_ENABLED) setPageRakuten(Math.max(1, pageRakuten - 1));
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             style={{
@@ -257,20 +270,20 @@ function App() {
             ← Page précédente
           </button>
           <span style={{padding: '10px 0', fontSize: '16px', fontWeight: 500}}>
-            Page {Math.max(pageEbay, pageLbc, pageVinted, pageRakuten)}
+            Page {Math.max(pageEbay, pageLbc, pageVinted, RAKUTEN_ENABLED ? pageRakuten : 0)}
           </span>
           <button 
             disabled={
               (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
               (pageVinted * 40 >= totalVinted || totalVinted === 0) && 
-              (pageRakuten * 40 >= totalRakuten || totalRakuten === 0) &&
+              (!RAKUTEN_ENABLED || (pageRakuten * 40 >= totalRakuten || totalRakuten === 0)) &&
               leboncoinItems.length === 0
             }
             onClick={() => {
               setPageEbay(pageEbay + 1);
               setPageLbc(pageLbc + 1);
               setPageVinted(pageVinted + 1);
-              setPageRakuten(pageRakuten + 1);
+              if (RAKUTEN_ENABLED) setPageRakuten(pageRakuten + 1);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             style={{
