@@ -172,7 +172,7 @@ function App() {
         <div>Aucun résultat.</div>
       )}
 
-      <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16, alignItems: 'start'}}>
+      <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns: RAKUTEN_ENABLED ? 'repeat(4, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: 16, alignItems: 'start'}}>
         <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
           <h2 style={{fontSize: '18px', marginBottom: 0}}>eBay France</h2>
           {ebayItems.map((item, index) => (
