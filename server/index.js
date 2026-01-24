@@ -166,15 +166,140 @@ app.all('/api/ebay/notifications/account-deletion', (req, res) => {
 });
 
 // LeBonCoin scraping with Puppeteer (bypasses DataDome/anti-bot)
+
+// Helper functions to extract data from different sites
+async function extractLeBonCoinData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const adCards = document.querySelectorAll('[data-test-id="ad"]');
+    
+    adCards.forEach((card) => {
+      try {
+        // Title from article aria-label or h3
+        const article = card.querySelector('article[data-test-id="ad"]') || card;
+        let title = article.getAttribute('aria-label');
+        if (!title) {
+          const h3 = card.querySelector('h3');
+          title = h3?.textContent?.trim();
+        }
+        
+        // URL from main link
+        const linkEl = card.querySelector('a[href*="/ad/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.leboncoin.fr${href}`) : null;
+        
+        // Image from picture/source or img
+        let image = card.querySelector('img')?.getAttribute('src');
+        if (!image) {
+          const source = card.querySelector('picture source[srcset]');
+          if (source) {
+            const srcset = source.getAttribute('srcset');
+            image = srcset?.split(',')[0]?.split(' ')[0];
+          }
+        }
+
+        // Price: look for explicit pattern "Prix: 465 €" in full card text
+        let price = null;
+        const pricePatternMatch = card.textContent.match(/Prix:\s*([\d\s.,]+\s*€)/);
+        if (pricePatternMatch) {
+          price = pricePatternMatch[1].trim();
+        }
+
+        // Livraison: look for explicit "Livraison possible" in full card text
+        const shipping = card.textContent.includes('Livraison possible') ? 'Livraison possible' : null;
+
+        if (title && url) {
+          results.push({ title, url, image, alt: title, price, shipping });
+        }
+      } catch (e) {
+        console.warn('Parse error:', e.message);
+      }
+    });
+    
+    return results;
+  });
+}
+
+async function extractEbayKleinanzeigenData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const listingCards = document.querySelectorAll('li.ad-listitem article.aditem');
+
+    listingCards.forEach((card) => {
+      try {
+        // URL from data-href or link
+        const dataHref = card.getAttribute('data-href');
+        const linkEl = card.querySelector('a[href*="/s-anzeige/"]') || card.querySelector('a[href]');
+        const href = dataHref || linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.kleinanzeigen.de${href}`) : null;
+
+        // Title
+        const titleEl = card.querySelector('h2 a') || card.querySelector('h2') || card.querySelector('.text-module-begin a');
+        const title = titleEl?.textContent?.trim();
+
+        // Image
+        let image = card.querySelector('img')?.getAttribute('src');
+        if (!image) {
+          const imgAlt = card.querySelector('img')?.getAttribute('data-src');
+          if (imgAlt) image = imgAlt;
+        }
+
+        // Price
+        let price = null;
+        const priceEl = card.querySelector('.aditem-main--middle--price-shipping--price') || card.querySelector('[class*="price"]');
+        if (priceEl?.textContent) {
+          const match = priceEl.textContent.match(/([\d.,]+\s*€)/);
+          if (match) price = match[1].trim();
+        } else {
+          const textMatch = card.textContent.match(/([\d.,]+\s*€)/);
+          if (textMatch) price = textMatch[1].trim();
+        }
+
+        // Shipping
+        let shipping = null;
+        if (card.textContent.includes('Versand')) {
+          shipping = 'Versand möglich';
+        }
+
+        if (title && url) {
+          results.push({ title, url, image, alt: title, price, shipping });
+        }
+      } catch (e) {
+        console.warn('Parse error:', e.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+// LeBonCoin scraping with Puppeteer (bypasses DataDome/anti-bot)
 app.get('/api/leboncoin/search', async (req, res) => {
   let browser;
   try {
-    const { query = 'drone', page = '1' } = req.query;
+    const { query = 'drone', page = '1', country = 'fr' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
 
-    const searchUrl = `https://www.leboncoin.fr/recherche?text=${encodeURIComponent(query)}&page=${pageNum}`;
+    // Map country codes to LeBonCoin domain or Kleinanzeigen
+    const countryConfig = {
+      fr: { domain: 'www.leboncoin.fr', name: 'LeBonCoin' },
+      de: { domain: 'www.kleinanzeigen.de', name: 'Kleinanzeigen' },
+    };
 
-    console.log(`🤖 Scraping LeBonCoin with Puppeteer for: "${query}" (page ${pageNum})`);
+    const config = countryConfig[country] || countryConfig.fr;
+
+    const searchUrl = country === 'de'
+      ? (() => {
+          const slug = String(query)
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/gi, '-')
+            .replace(/^-+|-+$/g, '') || 'anzeigen';
+          return `https://${config.domain}/s-seite:${pageNum}/${slug}/k0`;
+        })()
+      : `https://${config.domain}/recherche?text=${encodeURIComponent(query)}&page=${pageNum}`;
+
+    console.log(`🤖 Scraping ${config.name} with Puppeteer for: "${query}" (country: ${country}, page ${pageNum})`);
 
     browser = await puppeteer.launch({
       headless: true,
@@ -182,99 +307,59 @@ app.get('/api/leboncoin/search', async (req, res) => {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled'
-      ]
+        '--disable-blink-features=AutomationControlled',
+      ],
     });
 
     const page_obj = await browser.newPage();
-        
+
     // Set realistic viewport and user agent
     await page_obj.setViewport({ width: 1920, height: 1080 });
     await page_obj.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    
-    // Navigate and wait for network to be idle
-    await page_obj.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-    
-    // Wait for ads to load (adjust selector if needed)
-    await page_obj.waitForSelector('[data-test-id="ad"]', { timeout: 15000 });
+
+    // Navigate with higher timeout (Kleinanzeigen can be slow) and fall back to domcontentloaded
+    try {
+      await page_obj.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+    } catch (navErr) {
+      console.warn('Primary goto timed out, retrying with domcontentloaded:', navErr.message);
+      await page_obj.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    }
+
+    // Wait for ads/listings to load (different selectors FR vs DE)
+    const selectorFr = '[data-test-id="ad"]';
+    const selectorDe = '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article';
+    const selector = country === 'de' ? selectorDe : selectorFr;
+
+    try {
+      await page_obj.waitForSelector(selector, { timeout: 25000 });
+    } catch (waitErr) {
+      console.warn('Selector wait timed out, waiting extra 3s before proceeding:', waitErr.message);
+      await page_obj.waitForTimeout(3000);
+    }
 
     // Extract data from the page
-    const pageData = await page_obj.evaluate(() => {
-      const results = [];
-      const adCards = document.querySelectorAll('[data-test-id="ad"]');
-      
-      adCards.forEach((card) => {
-        try {
-          // Title from article aria-label or h3
-          const article = card.querySelector('article[data-test-id="ad"]') || card;
-          let title = article.getAttribute('aria-label');
-          if (!title) {
-            const h3 = card.querySelector('h3');
-            title = h3?.textContent?.trim();
-          }
-          
-          // URL from main link
-          const linkEl = card.querySelector('a[href*="/ad/"]') || card.querySelector('a[href]');
-          const href = linkEl?.getAttribute('href');
-          const url = href ? (href.startsWith('http') ? href : `https://www.leboncoin.fr${href}`) : null;
-          
-          // Image from picture/source or img
-          let image = card.querySelector('img')?.getAttribute('src');
-          if (!image) {
-            const source = card.querySelector('picture source[srcset]');
-            if (source) {
-              const srcset = source.getAttribute('srcset');
-              image = srcset?.split(',')[0]?.split(' ')[0];
-            }
-          }
-
-          // Price: look for explicit pattern "Prix: 465 €" in full card text
-          let price = null;
-          const pricePatternMatch = card.textContent.match(/Prix:\s*([\d\s.,]+\s*€)/);
-          if (pricePatternMatch) {
-            price = pricePatternMatch[1].trim();
-          }
-
-          // Livraison: look for explicit "Livraison possible" in full card text
-          const shipping = card.textContent.includes('Livraison possible') ? 'Livraison possible' : null;
-
-          if (title && url) {
-            results.push({ title, url, image, alt: title, price, shipping });
-          }
-        } catch (e) {
-          console.warn('Parse error:', e.message);
-        }
-      });
-      
-      return results;
-    });
-
-    // Log debug data (in Node context, not browser context)
-    // if (pageData.debugData?.firstCardText) {
-    //   console.log('=== FIRST CARD FULL TEXT ===');
-    //   console.log(pageData.debugData.firstCardText);
-    //   console.log('=== END ===');
-    // }
+    const pageData = country === 'de'
+      ? await extractEbayKleinanzeigenData(page_obj)
+      : await extractLeBonCoinData(page_obj);
 
     const items = pageData;
     await browser.close();
-    console.log(`✅ Found ${items.length} items on LeBonCoin page ${pageNum}`);
-    
-    res.json({ 
-      success: true, 
+    console.log(`✅ Found ${items.length} items on ${config.name} page ${pageNum}`);
+
+    res.json({
+      success: true,
       count: items.length,
       page: pageNum,
-      items: items, 
-      source: 'LeBonCoin (Puppeteer)' 
+      items,
+      source: country === 'de' ? 'Kleinanzeigen (Puppeteer)' : 'LeBonCoin (Puppeteer)',
     });
-
   } catch (error) {
     if (browser) await browser.close();
     console.error('LeBonCoin Puppeteer error:', error.message);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message, 
-      details: 'Failed to scrape LeBonCoin with Puppeteer' 
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Failed to scrape LeBonCoin with Puppeteer',
     });
   }
 });
@@ -346,21 +431,22 @@ app.get('/api/vinted/debug', async (req, res) => {
 app.get('/api/vinted/search', async (req, res) => {
   let browser;
   try {
-    const { query = 'drone', page = '1' } = req.query;
+    const { query = 'drone', page = '1', country = 'fr' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const itemsPerPage = 37;
-    
+
     // Calculate which Vinted page to load based on frontend page number
     // Each Vinted page has ~156 items = ~4 frontend pages (156/37 = 4.2)
     // We'll dynamically calculate after scraping
     const estimatedItemsPerVintedPage = 150; // Rough estimate
     const estimatedPagesPerVintedPage = Math.ceil(estimatedItemsPerVintedPage / itemsPerPage);
     const vintedPageToLoad = Math.ceil(pageNum / estimatedPagesPerVintedPage);
-    
-    // Vinted search URL format, category 3002 = Electronics, Video Games
-    const searchUrl = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(query)}&catalog[]=3002&page=${vintedPageToLoad}`;
 
-    console.log(`🤖 Scraping Vinted page ${vintedPageToLoad} for: "${query}" (frontend page ${pageNum})`);
+    const domain = country === 'de' ? 'www.vinted.de' : 'www.vinted.fr';
+    // Vinted search URL format, category 3002 = Electronics, Video Games
+    const searchUrl = `https://${domain}/catalog?search_text=${encodeURIComponent(query)}&catalog[]=3002&page=${vintedPageToLoad}`;
+
+    console.log(`🤖 Scraping Vinted (${country}) page ${vintedPageToLoad} for: "${query}" (frontend page ${pageNum})`);
 
     browser = await puppeteer.launch({
       headless: true,
@@ -465,16 +551,22 @@ app.get('/api/vinted/search', async (req, res) => {
       return results;
     });
 
+    // Normalize URLs to absolute
+    const normalizedData = pageData.map((item) => {
+      const absUrl = item.url?.startsWith('http') ? item.url : item.url ? `https://${domain}${item.url}` : null;
+      return { ...item, url: absUrl };
+    });
+
     await browser.close();
     
-    const totalScraped = pageData.length;
-    const pagesPerVintedPage = Math.ceil(totalScraped / itemsPerPage);
+    const totalScraped = normalizedData.length;
+    const pagesPerVintedPage = Math.max(1, Math.ceil(totalScraped / itemsPerPage));
     
     // Calculate which subset of the scraped items to return
     const localPageOffset = ((pageNum - 1) % pagesPerVintedPage);
     const startIdx = localPageOffset * itemsPerPage;
     const endIdx = startIdx + itemsPerPage;
-    const paginatedItems = pageData.slice(startIdx, endIdx);
+    const paginatedItems = normalizedData.slice(startIdx, endIdx);
     
     console.log(`✅ Scraped ${totalScraped} items from Vinted page ${vintedPageToLoad}, returning items ${startIdx}-${endIdx} (frontend page ${pageNum})`);
     
@@ -485,7 +577,7 @@ app.get('/api/vinted/search', async (req, res) => {
       page: pageNum,
       totalPages: pagesPerVintedPage,
       items: paginatedItems, 
-      source: 'Vinted (Puppeteer)' 
+      source: `Vinted (${country.toUpperCase()})` 
     });
 
   } catch (error) {
@@ -583,7 +675,7 @@ app.get('/api/ebay/search', async (req, res) => {
 // eBay Browse API endpoint (OAuth, production-ready path)
 app.get('/api/ebay/browse', async (req, res) => {
   try {
-    const { query = 'cabela 2013 wii u', page = '1' } = req.query;
+    const { query = 'cabela 2013 wii u', page = '1', country = 'fr' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
     const itemsPerPage = 37;
     const offset = (pageNum - 1) * itemsPerPage;
@@ -592,7 +684,15 @@ app.get('/api/ebay/browse', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Missing EBAY_APP_ID or EBAY_CLIENT_SECRET' });
     }
 
-    console.log(`🔍 Searching eBay Browse API for: "${query}" (page ${pageNum})`);
+    // Map country codes to eBay marketplace IDs
+    const countryToMarketplace = {
+      'fr': { id: 'EBAY_FR', country: 'FR' },
+      'de': { id: 'EBAY_DE', country: 'DE' }
+    };
+
+    const marketplace = countryToMarketplace[country] || countryToMarketplace['fr'];
+
+    console.log(`🔍 Searching eBay Browse API for: "${query}" (country: ${country}, page ${pageNum})`);
 
     const token = await getBrowseOAuthToken();
     const apiUrl = EBAY_SANDBOX
@@ -604,13 +704,13 @@ app.get('/api/ebay/browse', async (req, res) => {
         q: query,
         limit: 37,
         offset: offset,
-        marketplace_id: 'EBAY_FR',
-        filter: 'itemLocationCountry:FR',
+        marketplace_id: marketplace.id,
+        filter: `itemLocationCountry:${marketplace.country}`,
       },
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_FR',
+        'X-EBAY-C-MARKETPLACE-ID': marketplace.id,
         // Optional affiliate context if you have it (comma-separated values)
         ...(process.env.EBAY_ENDUSERCTX ? { 'X-EBAY-C-ENDUSERCTX': process.env.EBAY_ENDUSERCTX } : {}),
       },

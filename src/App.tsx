@@ -27,6 +27,7 @@ function App() {
     leboncoin: true,
     vinted: true
   });
+  const [country, setCountry] = useState('fr'); // 'fr' or 'de'
   
   // Pagination states
   const [pageEbay, setPageEbay] = useState(1);
@@ -47,15 +48,15 @@ function App() {
       const sourceOrder: string[] = [];
       
       if (sources.ebay) {
-        fetchPromises.push(fetch(`http://localhost:3002/api/ebay/browse?query=${encodeURIComponent(q)}&page=${pEbay}`));
+        fetchPromises.push(fetch(`http://localhost:3002/api/ebay/browse?query=${encodeURIComponent(q)}&page=${pEbay}&country=${country}`));
         sourceOrder.push('ebay');
       }
       if (sources.leboncoin) {
-        fetchPromises.push(fetch(`http://localhost:3002/api/leboncoin/search?query=${encodeURIComponent(q)}&page=${pLbc}`));
+        fetchPromises.push(fetch(`http://localhost:3002/api/leboncoin/search?query=${encodeURIComponent(q)}&page=${pLbc}&country=${country}`));
         sourceOrder.push('leboncoin');
       }
       if (sources.vinted) {
-        fetchPromises.push(fetch(`http://localhost:3002/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}`));
+        fetchPromises.push(fetch(`http://localhost:3002/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}&country=${country}`));
         sourceOrder.push('vinted');
       }
       
@@ -141,7 +142,7 @@ function App() {
 
   useEffect(() => {
     fetchItems(query, pageEbay, pageLbc, pageVinted);
-  }, [pageEbay, pageLbc, pageVinted]);
+  }, [pageEbay, pageLbc, pageVinted, country]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,6 +193,32 @@ function App() {
       >
         <h3 style={{marginTop: 0, marginBottom: 20}}>Sources à rechercher</h3>
         
+        <div style={{marginBottom: 20}}>
+          <label style={{display: 'block', marginBottom: 8, fontWeight: 'bold', fontSize: '14px'}}>Pays:</label>
+          <select
+            value={country}
+            onChange={(e) => {
+              setCountry(e.target.value);
+              setPageEbay(1);
+              setPageLbc(1);
+              setPageVinted(1);
+            }}
+            style={{
+              width: '100%',
+              padding: '6px 8px',
+              borderRadius: '4px',
+              border: '1px solid #ccc',
+              backgroundColor: 'white',
+              color: '#333',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            <option value="fr">🇫🇷 France</option>
+            <option value="de">🇩🇪 Allemagne</option>
+          </select>
+        </div>
+        
         <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
           <input
             type="checkbox"
@@ -199,7 +226,7 @@ function App() {
             onChange={(e) => setSources({...sources, ebay: e.target.checked})}
             style={{width: 16, height: 16, cursor: 'pointer'}}
           />
-          <span>eBay France</span>
+          <span>eBay {country === 'de' ? 'Allemagne' : 'France'}</span>
         </label>
 
         <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
@@ -209,7 +236,7 @@ function App() {
             onChange={(e) => setSources({...sources, leboncoin: e.target.checked})}
             style={{width: 16, height: 16, cursor: 'pointer'}}
           />
-          <span>LeBonCoin</span>
+          <span>{country === 'de' ? 'Kleinanzeigen' : 'LeBonCoin'}</span>
         </label>
 
         <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
@@ -219,7 +246,7 @@ function App() {
             onChange={(e) => setSources({...sources, vinted: e.target.checked})}
             style={{width: 16, height: 16, cursor: 'pointer'}}
           />
-          <span>Vinted</span>
+          <span>Vinted {country === 'de' ? '(DE)' : '(FR)'}</span>
         </label>
       </div>
 
@@ -260,10 +287,16 @@ function App() {
         <div>Aucun résultat.</div>
       )}
 
-      <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16, alignItems: 'start'}}>
+      {(() => {
+        const visibleColumns = Object.values(sources).filter(Boolean).length;
+        const gridTemplateColumns = visibleColumns === 1 ? '1fr' : visibleColumns === 2 ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))';
+        const maxWidth = visibleColumns === 1 ? '400px' : visibleColumns === 2 ? '800px' : undefined;
+        return (
+          <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns, gap: 16, alignItems: 'start', maxWidth, marginLeft: 'auto', marginRight: 'auto'}}>
+
         {sources.ebay && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
-            <h2 style={{fontSize: '18px', marginBottom: 0}}>eBay France</h2>
+            <h2 style={{fontSize: '18px', marginBottom: 0}}>eBay {country === 'de' ? 'Allemagne' : 'France'}</h2>
             {ebayItems.map((item, index) => (
               <EbayCard
                 key={index}
@@ -283,7 +316,7 @@ function App() {
 
         {sources.leboncoin && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
-            <h2 style={{fontSize: '18px', marginBottom: 0}}>LeBonCoin</h2>
+            <h2 style={{fontSize: '18px', marginBottom: 0}}>{country === 'de' ? 'Kleinanzeigen' : 'LeBonCoin'}</h2>
             {leboncoinItems.map((item, index) => (
               <LeboncoinCard
                 key={index}
@@ -320,7 +353,10 @@ function App() {
             )}
           </div>
         )}
-      </div>
+          </div>
+        );
+      })()}
+
 
       {/* Navigation globale pour tous les sites */}
       {(ebayItems.length > 0 || leboncoinItems.length > 0 || vintedItems.length > 0) && (
