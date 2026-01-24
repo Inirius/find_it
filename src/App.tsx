@@ -139,7 +139,7 @@ function App() {
   };
 
   return (
-    <div style={{padding: 16, maxWidth: 960, margin: '0 auto'}}>
+    <div style={{padding: '16px 8px', maxWidth: 1400, margin: '0 auto'}}>
       <h1 style={{marginBottom: 12}}>Recherche multi-sites</h1>
       <form
         onSubmit={handleSearch}
@@ -161,8 +161,8 @@ function App() {
         <div>Aucun résultat.</div>
       )}
 
-      <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16}}>
-        <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+      <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16, alignItems: 'start'}}>
+        <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
           <h2 style={{fontSize: '18px', marginBottom: 0}}>eBay France</h2>
           {ebayItems.map((item, index) => (
             <EbayCard
@@ -180,7 +180,7 @@ function App() {
           )}
         </div>
 
-        <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+        <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
           <h2 style={{fontSize: '18px', marginBottom: 0}}>LeBonCoin</h2>
           {leboncoinItems.map((item, index) => (
             <LeboncoinCard
@@ -198,7 +198,7 @@ function App() {
           )}
         </div>
 
-        <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+        <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
           <h2 style={{fontSize: '18px', marginBottom: 0}}>Vinted</h2>
           {vintedItems.map((item, index) => (
             <LeboncoinCard
@@ -216,7 +216,7 @@ function App() {
           )}
         </div>
 
-        <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
+        <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
           <h2 style={{fontSize: '18px', marginBottom: 0}}>Rakuten</h2>
           {rakutenItems.map((item, index) => (
             <LeboncoinCard

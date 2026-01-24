@@ -23,12 +23,18 @@ const EBAY_SITE_ID = process.env.EBAY_SITE_ID || '71'; // 71 = France
 const EBAY_NOTIFICATION_TOKEN = process.env.EBAY_NOTIFICATION_TOKEN || null;
 const EBAY_NOTIFICATION_ENDPOINT = process.env.EBAY_NOTIFICATION_ENDPOINT || null; // Full HTTPS URL configured in eBay portal
 const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET || null;
+// Rakuten Advertising Product Search API credentials (official API)
+const RAKUTEN_CLIENT_ID = process.env.RAKUTEN_CLIENT_ID || null;
+const RAKUTEN_CLIENT_SECRET = process.env.RAKUTEN_CLIENT_SECRET || null;
+const RAKUTEN_COUNTRY = process.env.RAKUTEN_COUNTRY || 'fr';
 const KEEPALIVE_URL = process.env.KEEPALIVE_URL || null;
 const KEEPALIVE_INTERVAL_MS = Number(process.env.KEEPALIVE_INTERVAL_MS || 240000); // Default: 4 minutes
 
 // Simple in-memory token cache for Browse API
 let browseToken = null;
 let browseTokenExp = 0;
+let rakutenToken = null;
+let rakutenTokenExp = 0;
 
 async function getBrowseOAuthToken() {
   if (browseToken && Date.now() < browseTokenExp - 60_000) {
@@ -73,6 +79,35 @@ function startKeepAlive() {
   // Initial ping immediately, then every KEEPALIVE_INTERVAL_MS
   ping();
   setInterval(ping, KEEPALIVE_INTERVAL_MS);
+}
+
+async function getRakutenToken() {
+  if (rakutenToken && Date.now() < rakutenTokenExp - 60_000) {
+    return rakutenToken;
+  }
+  if (!RAKUTEN_CLIENT_ID || !RAKUTEN_CLIENT_SECRET) {
+    throw new Error('Missing RAKUTEN_CLIENT_ID or RAKUTEN_CLIENT_SECRET');
+  }
+
+  const tokenUrl = 'https://api.rakutenmarketing.com/token';
+  const params = new URLSearchParams();
+  params.append('grant_type', 'client_credentials');
+  // Scope per docs: productsearch is sufficient; fallback to "affiliate" if needed
+  params.append('scope', 'productsearch');
+
+  const basic = Buffer.from(`${RAKUTEN_CLIENT_ID}:${RAKUTEN_CLIENT_SECRET}`).toString('base64');
+
+  const res = await axios.post(tokenUrl, params.toString(), {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Basic ${basic}`,
+    },
+    timeout: 12000,
+  });
+
+  rakutenToken = res.data.access_token;
+  rakutenTokenExp = Date.now() + (res.data.expires_in || 3600) * 1000;
+  return rakutenToken;
 }
 
 // Enable CORS for the frontend
@@ -494,62 +529,148 @@ app.get('/api/vinted/search', async (req, res) => {
   }
 });
 
-// Rakuten scraping (HTML via axios + cheerio)
+// Rakuten Product Search API (official) with graceful fallback
 app.get('/api/rakuten/search', async (req, res) => {
+  const { query = 'drone', page = '1' } = req.query;
+  const pageNum = Math.max(1, parseInt(page) || 1);
+
+  // Try official API first if credentials are set
+  if (RAKUTEN_CLIENT_ID && RAKUTEN_CLIENT_SECRET) {
+    try {
+      const token = await getRakutenToken();
+      const apiUrl = 'https://api.rakutenmarketing.com/productsearch/1.0';
+
+      const params = new URLSearchParams();
+      params.append('keyword', String(query));
+      params.append('page', String(pageNum));
+      params.append('locale', RAKUTEN_COUNTRY || 'fr');
+      // Page size: default 20; cap at 40 for UI consistency
+      params.append('max', '40');
+
+      const { data } = await axios.get(`${apiUrl}?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+        timeout: 12000,
+      });
+
+      const items = [];
+      const products = data?.results || data?.items || data?.data || [];
+
+      products.forEach((p) => {
+        try {
+          const title = p?.productName || p?.title || p?.name || null;
+          const url = p?.linkUrl || p?.link || p?.productUrl || null;
+          const image = p?.imageUrl || p?.image || p?.thumbnailImage || null;
+          const priceValue = p?.salePrice || p?.price || p?.maxPrice || p?.minPrice;
+          const currency = p?.currency || 'EUR';
+          const price = priceValue ? `${priceValue} ${currency}` : null;
+          const shipping = p?.shipping || p?.shippingCost || null;
+
+          if (!title || !url) return;
+
+          items.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        } catch (_) {
+          // skip malformed
+        }
+      });
+
+      if (items.length > 0) {
+        return res.json({
+          success: true,
+          source: 'Rakuten API',
+          items: items.slice(0, 40),
+          total: items.length,
+        });
+      }
+    } catch (error) {
+      console.error('Rakuten API error:', error.message);
+      // fall through to scraping fallback
+    }
+  }
+
+  // Fallback: Puppeteer scraping if API unavailable/missing creds
+  let browser;
   try {
-    const { query = 'drone', page = '1' } = req.query;
-    const pageNum = Math.max(1, parseInt(page) || 1);
     const searchUrl = `https://fr.shopping.rakuten.com/s/m?q=${encodeURIComponent(query)}&p=${pageNum}`;
 
-    console.log(`🛒 Scraping Rakuten page ${pageNum} for: "${query}"`);
+    console.log(`🛒 Scraping Rakuten with Puppeteer page ${pageNum} for: "${query}"`);
 
-    const { data: html } = await axios.get(searchUrl, {
-      timeout: 15000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7'
-      }
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled'
+      ]
     });
 
-    const $ = cheerio.load(html);
-    const items = [];
+    const page_obj = await browser.newPage();
+    await page_obj.setViewport({ width: 1920, height: 1080 });
+    await page_obj.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    await page_obj.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Wait for product listings to load
+    await page_obj.waitForSelector('a[href*="/offer/"], article, [data-testid*="product"]', { timeout: 15000 });
 
-    $('a[href*="/offer/buy/"], a[href*="/offer/mcp/"]').each((_, el) => {
-      if (items.length >= 40) return; // cap to 40
-      const link = $(el);
-      const rawUrl = link.attr('href');
-      const title = (link.attr('title') || link.find('h2, h3, .navsrp-card-title, .navsrp-offer-title').first().text() || '').trim();
-
-      if (!rawUrl || !title) return;
-
-      const parent = link.closest('article').length ? link.closest('article') : link.parent();
-      const img = link.find('img').attr('src') || link.find('img').attr('data-src') || null;
-
-      let price = parent.find('[itemprop="price"], .price, .navsrp-price, .offer-price, .u-color-primary').first().text().trim();
-      if (!price) {
-        const priceAttr = parent.find('[itemprop="price"]').attr('content');
-        if (priceAttr) price = `${priceAttr} €`;
-      }
-
-      let shipping = parent.find('.shipping, .delivery, .navsrp-shipping, [data-testid*="shipping"], .navsrp-offer-delivery').first().text().trim();
-      if (!shipping) shipping = null;
-
-      const absoluteUrl = rawUrl.startsWith('http') ? rawUrl : `https://fr.shopping.rakuten.com${rawUrl}`;
-
-      items.push({
-        title: title || null,
-        url: absoluteUrl,
-        image: img,
-        alt: title || null,
-        price: price || null,
-        shipping,
+    const pageData = await page_obj.evaluate(() => {
+      const results = [];
+      
+      // Try multiple selectors for Rakuten product cards
+      const productLinks = document.querySelectorAll('a[href*="/offer/buy/"], a[href*="/offer/mcp/"], a[data-testid*="product"]');
+      
+      productLinks.forEach((link) => {
+        try {
+          const rawUrl = link.getAttribute('href');
+          const title = link.getAttribute('title') || link.querySelector('h2, h3, .title, [class*="title"]')?.textContent?.trim() || '';
+          
+          if (!rawUrl || !title) return;
+          
+          const parent = link.closest('article') || link.closest('[data-testid*="product"]') || link.parentElement;
+          const img = link.querySelector('img')?.src || link.querySelector('img')?.getAttribute('data-src') || null;
+          
+          let price = parent?.querySelector('[itemprop="price"], .price, [class*="price"]')?.textContent?.trim() || null;
+          if (!price) {
+            const priceAttr = parent?.querySelector('[itemprop="price"]')?.getAttribute('content');
+            if (priceAttr) price = `${priceAttr} €`;
+          }
+          
+          const shipping = parent?.querySelector('.shipping, .delivery, [class*="shipping"], [class*="delivery"]')?.textContent?.trim() || null;
+          
+          const absoluteUrl = rawUrl.startsWith('http') ? rawUrl : `https://fr.shopping.rakuten.com${rawUrl}`;
+          
+          results.push({
+            title: title || null,
+            url: absoluteUrl,
+            image: img,
+            alt: title || null,
+            price: price || null,
+            shipping,
+          });
+        } catch (e) {
+          console.warn('Rakuten parse error:', e.message);
+        }
       });
+      
+      return results;
     });
+
+    await browser.close();
 
     // Deduplicate by URL
     const seen = new Set();
     const deduped = [];
-    for (const it of items) {
+    for (const it of pageData) {
       if (it.url && !seen.has(it.url)) {
         seen.add(it.url);
         deduped.push(it);
@@ -576,12 +697,13 @@ app.get('/api/rakuten/search', async (req, res) => {
 
     return res.json({
       success: true,
-      source: 'Rakuten',
+      source: 'Rakuten (Puppeteer fallback)',
       items: deduped.slice(0, 40),
       total: deduped.length,
     });
   } catch (error) {
-    console.error('Rakuten scraping error:', error.message);
+    if (browser) await browser.close();
+    console.error('Rakuten Puppeteer error:', error.message);
     return res.status(200).json({
       success: false,
       error: 'rakuten-scrape-error',
