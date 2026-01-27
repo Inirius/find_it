@@ -17,6 +17,10 @@ const getCountryName = (country: string): string => {
   switch (country) {
     case 'de': return 'Allemagne';
     case 'be': return 'Belgique';
+    case 'at': return 'Autriche';
+    case 'es': return 'Espagne';
+    case 'nl': return 'Pays-Bas';
+    case 'pl': return 'Pologne';
     default: return 'France';
   }
 };
@@ -25,6 +29,10 @@ const getLeboncoinName = (country: string): string => {
   switch (country) {
     case 'de': return 'Kleinanzeigen';
     case 'be': return '2ememain.be';
+    case 'at': return 'Willhaben';
+    case 'es': return 'Wallapop';
+    case 'nl': return 'Marktplaats';
+    case 'pl': return 'Olx.pl';
     default: return 'LeBonCoin';
   }
 };
@@ -239,6 +247,10 @@ function App() {
             <option value="fr">🇫🇷 France</option>
             <option value="de">🇩🇪 Allemagne</option>
             <option value="be">🇧🇪 Belgique</option>
+            <option value="at">🇦🇹 Autriche</option>
+            <option value="es">🇪🇸 Espagne</option>
+            <option value="nl">🇳🇱 Pays-Bas</option>
+            <option value="pl">🇵🇱 Pologne</option>
           </select>
         </div>
         

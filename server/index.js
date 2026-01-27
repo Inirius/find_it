@@ -173,6 +173,10 @@ function getCountryConfig(country) {
     fr: { domain: 'www.leboncoin.fr', name: 'LeBonCoin' },
     de: { domain: 'www.kleinanzeigen.de', name: 'Kleinanzeigen' },
     be: { domain: 'www.2ememain.be', name: '2ememain.be' },
+    at: { domain: 'www.willhaben.at', name: 'Willhaben' },
+    es: { domain: 'es.wallapop.com', name: 'Wallapop' },
+    nl: { domain: 'www.marktplaats.nl', name: 'Marktplaats' },
+    pl: { domain: 'www.olx.pl', name: 'OLX' },
   };
   return configs[country] || configs.fr;
 }
@@ -182,6 +186,10 @@ function getEbayMarketplace(country) {
     fr: { id: 'EBAY_FR', country: 'FR' },
     de: { id: 'EBAY_DE', country: 'DE' },
     be: { id: 'EBAY_BE', country: 'BE' },
+    at: { id: 'EBAY_AT', country: 'AT' },
+    es: { id: 'EBAY_ES', country: 'ES' },
+    nl: { id: 'EBAY_NL', country: 'NL' },
+    pl: { id: 'EBAY_PL', country: 'PL' },
   };
   return marketplaces[country] || marketplaces.fr;
 }
@@ -191,6 +199,10 @@ function getVintedDomain(country) {
     fr: 'www.vinted.fr',
     de: 'www.vinted.de',
     be: 'www.vinted.be',
+    at: 'www.vinted.at',
+    es: 'www.vinted.es',
+    nl: 'www.vinted.nl',
+    pl: 'www.vinted.pl',
   };
   return domains[country] || domains.fr;
 }
@@ -200,11 +212,28 @@ function getSourceName(country) {
   return `${config.name} (Puppeteer)`;
 }
 
+function getCurrency(country) {
+  const currencies = {
+    fr: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    de: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    be: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    at: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    es: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    nl: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    pl: { symbol: 'zł', pattern: '(\\d+(?:\\s|,)\\d{2}\\s*zł)' },
+  };
+  return currencies[country] || currencies.fr;
+}
+
 function getSelector(country) {
   const selectors = {
     fr: '[data-test-id="ad"]',
     de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
+    at: 'article, [data-testid="ad"], a[href*="/iad/"]',
+    es: 'a[href*="/item/"], article, [class*="item"]',
+    nl: 'article, li.mp-Listing, [class*="listing"]',
+    pl: 'div[data-cy="l-card"]',
   };
   return selectors[country] || selectors.fr;
 }
@@ -225,6 +254,24 @@ function getSearchUrl(country, config, query, pageNum) {
     return `https://${config.domain}/q/${searchTerm}/${pageSuffix}`;
   }
   
+  if (country === 'at') {
+    return `https://${config.domain}/iad/kaufen-und-verkaufen/l/seite-${pageNum}?keyword=${encodeURIComponent(query)}`;
+  }
+  
+  if (country === 'es') {
+    return `https://${config.domain}/search?keywords=${encodeURIComponent(query)}&page=${pageNum}`;
+  }
+  
+  if (country === 'nl') {
+    return `https://${config.domain}/q/${encodeURIComponent(query)}/?page=${pageNum}`;
+  }
+  
+  if (country === 'pl') {
+    const searchTerm = String(query).trim().replace(/\s+/g, '-');
+    const pageSuffix = pageNum > 1 ? `?page=${pageNum}` : '';
+    return `https://${config.domain}/oferty/q-${searchTerm}/${pageSuffix}`;
+  }
+  
   // Default: France
   return `https://${config.domain}/recherche?text=${encodeURIComponent(query)}&page=${pageNum}`;
 }
@@ -234,6 +281,10 @@ function getExtractor(country) {
     fr: extractLeBonCoinData,
     de: extractEbayKleinanzeigenData,
     be: extract2ememainData,
+    at: extractLeBonCoinData, // Willhaben - à adapter selon la structure réelle
+    es: extractLeBonCoinData, // Wallapop - à adapter selon la structure réelle
+    nl: extractLeBonCoinData, // Marktplaats - à adapter selon la structure réelle
+    pl: extractOlxData, // OLX.pl
   };
   return extractors[country] || extractors.fr;
 }
@@ -385,6 +436,57 @@ async function extract2ememainData(page_obj) {
             shipping = attr.textContent.trim();
           }
         });
+
+        if (title && url) {
+          results.push({ title, url, image, alt: title, price, shipping });
+        }
+      } catch (e) {
+        console.warn('Parse error:', e.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+async function extractOlxData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const listingCards = document.querySelectorAll('div[data-cy="l-card"]');
+
+    listingCards.forEach((card) => {
+      try {
+        // URL from the link with /d/oferta/
+        const linkEl = card.querySelector('a[href*="/d/oferta/"]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.olx.pl${href}`) : null;
+
+        // Title
+        const titleEl = card.querySelector('[data-testid="ad-card-title"] h4');
+        const title = titleEl?.textContent?.trim();
+
+        // Image
+        let image = card.querySelector('img')?.getAttribute('src');
+        if (!image) {
+          const imgAttr = card.querySelector('img')?.getAttribute('data-src');
+          if (imgAttr) image = imgAttr;
+        }
+
+        // Price - look for text with "zł" 
+        let price = null;
+        const priceEl = card.querySelector('[data-testid="ad-price"]');
+        if (priceEl?.textContent) {
+          const priceText = priceEl.textContent.trim();
+          const match = priceText.match(/([\d\s.,]+\s*zł)/);
+          if (match) price = match[1].trim();
+        }
+
+        // Shipping - look for "Pakietem Ochronnym" or similar badges
+        let shipping = null;
+        const badgeText = card.textContent;
+        if (badgeText.includes('Pakietem Ochronnym')) {
+          shipping = 'Pakiet Ochronny';
+        }
 
         if (title && url) {
           results.push({ title, url, image, alt: title, price, shipping });
@@ -574,7 +676,8 @@ app.get('/api/vinted/search', async (req, res) => {
     // Wait for items to load
     await page_obj.waitForSelector('a[href*="/items/"]', { timeout: 15000 });
 
-    const pageData = await page_obj.evaluate(() => {
+    const currency = getCurrency(country);
+    const pageData = await page_obj.evaluate((currencyInfo) => {
       const results = [];
       const links = document.querySelectorAll('a[href*="/items/"]');
       
@@ -597,7 +700,8 @@ app.get('/api/vinted/search', async (req, res) => {
           
           // Extract price from title attribute - get ALL prices and take the second (with fees)
           let price = null;
-          const priceMatches = titleAttr.match(/(\d+,\d{2}\s*€)/g);
+          const priceRegex = new RegExp(currencyInfo.pattern, 'g');
+          const priceMatches = titleAttr.match(priceRegex);
           if (priceMatches && priceMatches.length > 1) {
             // Second price (with fees like Protection acheteurs)
             price = priceMatches[1].trim();
@@ -656,7 +760,7 @@ app.get('/api/vinted/search', async (req, res) => {
       });
       
       return results;
-    });
+    }, currency);
 
     // Normalize URLs to absolute
     const normalizedData = pageData.map((item) => {
