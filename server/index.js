@@ -217,7 +217,7 @@ function getItemsPerPage(country) {
     de: 50,  // Kleinanzeigen
     be: 50,  // 2ememain.be
     at: 50,  // Willhaben
-    es: 50,  // Wallapop
+    es: 40,  // Wallapop
     nl: 50,  // Marktplaats
     pl: 50,  // OLX
   };
@@ -230,7 +230,7 @@ function getSelector(country) {
     de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
     at: 'article, [data-testid="ad"], a[href*="/iad/"]',
-    es: 'a[href*="/item/"], article, [class*="item"]',
+    es: 'a[href*="/item/"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
   };
@@ -258,7 +258,9 @@ function getSearchUrl(country, config, query, pageNum) {
   }
   
   if (country === 'es') {
-    return `https://${config.domain}/search?keywords=${encodeURIComponent(query)}&page=${pageNum}`;
+    const searchTerm = String(query).trim().replace(/\s+/g, '+');
+    // Wallapop uses infinite scroll with "Cargar más" button, no page parameter
+    return `https://${config.domain}/search?keywords=${searchTerm}`;
   }
   
   if (country === 'nl') {
@@ -283,7 +285,7 @@ function getExtractor(country) {
     de: extractEbayKleinanzeigenData,
     be: extract2ememainData,
     at: extractLeBonCoinData, // Willhaben - à adapter selon la structure réelle
-    es: extractLeBonCoinData, // Wallapop - à adapter selon la structure réelle
+    es: extractWallapopData, // Wallapop
     nl: extract2ememainData, // Marktplaats.nl - même structure que 2ememain.be
     pl: extractOlxData, // OLX.pl
   };
@@ -501,6 +503,53 @@ async function extractOlxData(page_obj) {
   });
 }
 
+// Wallapop (Spain) extractor
+function extractWallapopData(page) {
+  return page.evaluate(() => {
+    const results = [];
+    const selector = 'a[href*="/item/"]';
+    const items = document.querySelectorAll(selector);
+
+    items.forEach((item) => {
+      try {
+        // Title from aria-label or title attribute
+        const title = item.getAttribute('aria-label') || item.getAttribute('title') || '';
+        
+        // First image
+        const imgEl = item.querySelector('img');
+        const image = imgEl ? imgEl.src : '';
+        
+        // Price from strong element
+        const priceEl = item.querySelector('strong[aria-label="Item price"], strong.item-card_ItemCard__price');
+        let price = priceEl ? priceEl.textContent.trim() : '';
+        // Remove &nbsp; and normalize spaces
+        price = price.replace(/\s+/g, ' ').trim();
+        
+        // URL
+        const url = item.href || '';
+        
+        // Shipping: look for wallapop-badge with shipping text
+        const shippingBadge = item.querySelector('wallapop-badge[badge-type="shippingAvailable"]');
+        const shipping = shippingBadge ? shippingBadge.getAttribute('text') || 'Envío disponible' : '';
+
+        if (title && url) {
+          results.push({
+            title: title.trim(),
+            price: price || 'N/A',
+            image: image || '',
+            url: url.startsWith('http') ? url : `https://es.wallapop.com${url}`,
+            shipping: shipping || ''
+          });
+        }
+      } catch (err) {
+        console.error('Error extracting Wallapop item:', err);
+      }
+    });
+
+    return results;
+  });
+}
+
 // LeBonCoin scraping with Puppeteer (bypasses DataDome/anti-bot)
 app.get('/api/leboncoin/search', async (req, res) => {
   let browser;
@@ -570,11 +619,59 @@ app.get('/api/leboncoin/search', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 3250)); // Increased wait time for images to load
     }
 
+    // Load more results for Wallapop (Spain) by clicking "Cargar más" button once, then scrolling
+    if (country === 'es') {
+      console.log('📜 Loading more Wallapop results...');
+      const itemsPerPage = getItemsPerPage(country);
+      const totalItemsNeeded = pageNum * itemsPerPage;
+      
+      try {
+        // Scroll to bottom to make button appear
+        await page_obj.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Click "Cargar más" button once to activate infinite scroll
+        const buttonFound = await page_obj.evaluate(() => {
+          const button = document.querySelector('walla-button[text="Cargar más"]');
+          if (button) {
+            button.click();
+            return true;
+          }
+          return false;
+        });
+        
+        if (buttonFound) {
+          console.log('  ✅ Clicked "Cargar más" - infinite scroll activated');
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Now scroll multiple times to load more results
+          // First load has itemsPerPage items, each scroll loads ~20 more
+          const scrollsNeeded = Math.max(1, Math.ceil((totalItemsNeeded - itemsPerPage) / 20));
+          for (let i = 0; i < scrollsNeeded; i++) {
+            await page_obj.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            console.log(`  📄 Scroll ${i + 1}/${scrollsNeeded}`);
+          }
+        }
+      } catch (err) {
+        console.warn('  ⚠️ Could not activate Wallapop infinite scroll:', err.message);
+      }
+    }
+
     // Extract data from the page
     const extractor = getExtractor(country);
-    const pageData = await extractor(page_obj);
+    let pageData = await extractor(page_obj);
 
-    const items = pageData;
+    // For Wallapop (Spain), slice results to only return the current page
+    let items = pageData;
+    if (country === 'es' && pageNum > 1) {
+      const itemsPerPage = getItemsPerPage(country);
+      const startIndex = (pageNum - 1) * itemsPerPage;
+      const endIndex = pageNum * itemsPerPage;
+      items = pageData.slice(startIndex, endIndex);
+      console.log(`📄 Wallapop: Extracted items ${startIndex}-${endIndex - 1} from ${pageData.length} total loaded items`);
+    }
+
     await browser.close();
     console.log(`✅ Found ${items.length} items on ${config.name} page ${pageNum}`);
 
