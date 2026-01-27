@@ -181,30 +181,16 @@ function getCountryConfig(country) {
   return configs[country] || configs.fr;
 }
 
-function getEbayMarketplace(country) {
-  const marketplaces = {
-    fr: { id: 'EBAY_FR', country: 'FR' },
-    de: { id: 'EBAY_DE', country: 'DE' },
-    be: { id: 'EBAY_BE', country: 'BE' },
-    at: { id: 'EBAY_AT', country: 'AT' },
-    es: { id: 'EBAY_ES', country: 'ES' },
-    nl: { id: 'EBAY_NL', country: 'NL' },
-    pl: { id: 'EBAY_PL', country: 'PL' },
+function getEbayMarketplace(country = 'fr') {
+  const code = country.toUpperCase();
+  return {
+    id: `EBAY_${code}`,
+    country: code,
   };
-  return marketplaces[country] || marketplaces.fr;
 }
 
-function getVintedDomain(country) {
-  const domains = {
-    fr: 'www.vinted.fr',
-    de: 'www.vinted.de',
-    be: 'www.vinted.be',
-    at: 'www.vinted.at',
-    es: 'www.vinted.es',
-    nl: 'www.vinted.nl',
-    pl: 'www.vinted.pl',
-  };
-  return domains[country] || domains.fr;
+function getVintedDomain(country = 'fr') {
+  return `www.vinted.${country}`;
 }
 
 function getSourceName(country) {
@@ -214,12 +200,12 @@ function getSourceName(country) {
 
 function getCurrency(country) {
   const currencies = {
-    fr: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    fr: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },  // Format FR: 250,00 €
     de: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
     be: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
     at: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
     es: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
-    nl: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    nl: { symbol: '€', pattern: '(€\\s*\\d+,\\d{2})' },  // Format NL: € 250,00
     pl: { symbol: 'zł', pattern: '(\\d+(?:\\s|,)\\d{2}\\s*zł)' },
   };
   return currencies[country] || currencies.fr;
@@ -245,7 +231,7 @@ function getSelector(country) {
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
     at: 'article, [data-testid="ad"], a[href*="/iad/"]',
     es: 'a[href*="/item/"], article, [class*="item"]',
-    nl: 'article, li.mp-Listing, [class*="listing"]',
+    nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
   };
   return selectors[country] || selectors.fr;
@@ -276,7 +262,9 @@ function getSearchUrl(country, config, query, pageNum) {
   }
   
   if (country === 'nl') {
-    return `https://${config.domain}/q/${encodeURIComponent(query)}/?page=${pageNum}`;
+    const searchTerm = String(query).trim().replace(/\s+/g, '+');
+    const pageSuffix = pageNum > 1 ? `p/${pageNum}/` : '';
+    return `https://${config.domain}/q/${searchTerm}/${pageSuffix}`;
   }
   
   if (country === 'pl') {
@@ -296,7 +284,7 @@ function getExtractor(country) {
     be: extract2ememainData,
     at: extractLeBonCoinData, // Willhaben - à adapter selon la structure réelle
     es: extractLeBonCoinData, // Wallapop - à adapter selon la structure réelle
-    nl: extractLeBonCoinData, // Marktplaats - à adapter selon la structure réelle
+    nl: extract2ememainData, // Marktplaats.nl - même structure que 2ememain.be
     pl: extractOlxData, // OLX.pl
   };
   return extractors[country] || extractors.fr;
@@ -612,8 +600,9 @@ app.get('/api/leboncoin/search', async (req, res) => {
 app.get('/api/vinted/debug', async (req, res) => {
   let browser;
   try {
-    const { query = 'drone' } = req.query;
-    const searchUrl = `https://www.vinted.fr/catalog?search_text=${encodeURIComponent(query)}`;
+    const { query = 'drone', country = 'fr' } = req.query;
+    const domain = getVintedDomain(country);
+    const searchUrl = `https://${domain}/catalog?search_text=${encodeURIComponent(query)}&catalog[]=3002`;
 
     browser = await puppeteer.launch({
       headless: true,
@@ -631,7 +620,8 @@ app.get('/api/vinted/debug', async (req, res) => {
     
     await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
 
-    const pageInfo = await page.evaluate(() => {
+    const currency = getCurrency(country);
+    const pageInfo = await page.evaluate((currencyInfo) => {
       const selectors = {
         'a[href*="/items/"]': document.querySelectorAll('a[href*="/items/"]').length,
         'article': document.querySelectorAll('article').length,
@@ -643,15 +633,27 @@ app.get('/api/vinted/debug', async (req, res) => {
 
       const firstArticle = document.querySelector('article');
       const firstLink = document.querySelector('a[href*="/items/"]');
+      
+      // Extract sample prices
+      const samplePrices = [];
+      const links = Array.from(document.querySelectorAll('a[href*="/items/"]')).slice(0, 5);
+      links.forEach((link) => {
+        const titleAttr = link.getAttribute('title');
+        if (titleAttr) {
+          samplePrices.push(titleAttr.substring(0, 150));
+        }
+      });
 
       return {
         title: document.title,
         url: window.location.href,
+        country: currencyInfo.symbol,
         selectorCounts: selectors,
         firstArticleHTML: firstArticle?.outerHTML.substring(0, 500),
         firstLinkHTML: firstLink?.outerHTML.substring(0, 500),
+        samplePrices: samplePrices,
       };
-    });
+    }, currency);
 
     await browser.close();
     
