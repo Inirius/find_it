@@ -167,6 +167,77 @@ app.all('/api/ebay/notifications/account-deletion', (req, res) => {
 
 // LeBonCoin scraping with Puppeteer (bypasses DataDome/anti-bot)
 
+// Helper functions for country-specific configuration
+function getCountryConfig(country) {
+  const configs = {
+    fr: { domain: 'www.leboncoin.fr', name: 'LeBonCoin' },
+    de: { domain: 'www.kleinanzeigen.de', name: 'Kleinanzeigen' },
+    be: { domain: 'www.2ememain.be', name: '2ememain.be' },
+  };
+  return configs[country] || configs.fr;
+}
+
+function getEbayMarketplace(country) {
+  const marketplaces = {
+    fr: { id: 'EBAY_FR', country: 'FR' },
+    de: { id: 'EBAY_DE', country: 'DE' },
+    be: { id: 'EBAY_BE', country: 'BE' },
+  };
+  return marketplaces[country] || marketplaces.fr;
+}
+
+function getVintedDomain(country) {
+  const domains = {
+    fr: 'www.vinted.fr',
+    de: 'www.vinted.de',
+    be: 'www.vinted.be',
+  };
+  return domains[country] || domains.fr;
+}
+
+function getSourceName(country) {
+  const config = getCountryConfig(country);
+  return `${config.name} (Puppeteer)`;
+}
+
+function getSelector(country) {
+  const selectors = {
+    fr: '[data-test-id="ad"]',
+    de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
+    be: 'li.hz-Listing, .hz-Listing-coverLink-new',
+  };
+  return selectors[country] || selectors.fr;
+}
+
+function getSearchUrl(country, config, query, pageNum) {
+  if (country === 'de') {
+    const slug = String(query)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '') || 'anzeigen';
+    return `https://${config.domain}/s-seite:${pageNum}/${slug}/k0`;
+  }
+  
+  if (country === 'be') {
+    const searchTerm = String(query).trim().replace(/\s+/g, '+');
+    const pageSuffix = pageNum > 1 ? `p/${pageNum}/` : '';
+    return `https://${config.domain}/q/${searchTerm}/${pageSuffix}`;
+  }
+  
+  // Default: France
+  return `https://${config.domain}/recherche?text=${encodeURIComponent(query)}&page=${pageNum}`;
+}
+
+function getExtractor(country) {
+  const extractors = {
+    fr: extractLeBonCoinData,
+    de: extractEbayKleinanzeigenData,
+    be: extract2ememainData,
+  };
+  return extractors[country] || extractors.fr;
+}
+
 // Helper functions to extract data from different sites
 async function extractLeBonCoinData(page_obj) {
   return await page_obj.evaluate(() => {
@@ -273,6 +344,60 @@ async function extractEbayKleinanzeigenData(page_obj) {
   });
 }
 
+async function extract2ememainData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    // 2ememain.be structure
+    const listingCards = document.querySelectorAll('li.hz-Listing');
+
+    listingCards.forEach((card) => {
+      try {
+        // URL
+        const linkEl = card.querySelector('a.hz-Listing-coverLink-new, a[href*="/v/"]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.2ememain.be${href}`) : null;
+
+        // Title
+        const titleEl = card.querySelector('strong.hz-Text--bodyLarge');
+        const title = titleEl?.textContent?.trim();
+
+        // Image
+        let image = card.querySelector('img.hz-Image')?.getAttribute('src');
+        if (!image || image.includes('placeholder')) {
+          image = card.querySelector('img.hz-Image')?.getAttribute('data-src');
+        }
+
+        // Price
+        let price = null;
+        const priceEl = card.querySelector('.hz-Listing-price, h5.hz-Title--title5');
+        if (priceEl?.textContent) {
+          // Remove &nbsp; and normalize
+          const priceText = priceEl.textContent.replace(/\s+/g, ' ').trim();
+          const match = priceText.match(/€\s*([\d.,]+)/);
+          if (match) price = `€ ${match[1]}`;
+        }
+
+        // Shipping - check attributes for "Envoi" or "Enlèvement ou Envoi"
+        let shipping = null;
+        const attributes = card.querySelectorAll('.hz-Attribute-new span.hz-Text');
+        attributes.forEach((attr) => {
+          if (attr.textContent.includes('Envoi')) {
+            shipping = attr.textContent.trim();
+          }
+        });
+
+        if (title && url) {
+          results.push({ title, url, image, alt: title, price, shipping });
+        }
+      } catch (e) {
+        console.warn('Parse error:', e.message);
+      }
+    });
+
+    return results;
+  });
+}
+
 // LeBonCoin scraping with Puppeteer (bypasses DataDome/anti-bot)
 app.get('/api/leboncoin/search', async (req, res) => {
   let browser;
@@ -280,26 +405,11 @@ app.get('/api/leboncoin/search', async (req, res) => {
     const { query = 'drone', page = '1', country = 'fr' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
 
-    // Map country codes to LeBonCoin domain or Kleinanzeigen
-    const countryConfig = {
-      fr: { domain: 'www.leboncoin.fr', name: 'LeBonCoin' },
-      de: { domain: 'www.kleinanzeigen.de', name: 'Kleinanzeigen' },
-    };
-
-    const config = countryConfig[country] || countryConfig.fr;
-
-    const searchUrl = country === 'de'
-      ? (() => {
-          const slug = String(query)
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/gi, '-')
-            .replace(/^-+|-+$/g, '') || 'anzeigen';
-          return `https://${config.domain}/s-seite:${pageNum}/${slug}/k0`;
-        })()
-      : `https://${config.domain}/recherche?text=${encodeURIComponent(query)}&page=${pageNum}`;
+    const config = getCountryConfig(country);
+    const searchUrl = getSearchUrl(country, config, query, pageNum);
 
     console.log(`🤖 Scraping ${config.name} with Puppeteer for: "${query}" (country: ${country}, page ${pageNum})`);
+
 
     browser = await puppeteer.launch({
       headless: true,
@@ -325,10 +435,8 @@ app.get('/api/leboncoin/search', async (req, res) => {
       await page_obj.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     }
 
-    // Wait for ads/listings to load (different selectors FR vs DE)
-    const selectorFr = '[data-test-id="ad"]';
-    const selectorDe = '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article';
-    const selector = country === 'de' ? selectorDe : selectorFr;
+    // Wait for ads/listings to load (different selectors FR vs DE vs BE)
+    const selector = getSelector(country);
 
     try {
       await page_obj.waitForSelector(selector, { timeout: 25000 });
@@ -338,9 +446,8 @@ app.get('/api/leboncoin/search', async (req, res) => {
     }
 
     // Extract data from the page
-    const pageData = country === 'de'
-      ? await extractEbayKleinanzeigenData(page_obj)
-      : await extractLeBonCoinData(page_obj);
+    const extractor = getExtractor(country);
+    const pageData = await extractor(page_obj);
 
     const items = pageData;
     await browser.close();
@@ -351,7 +458,7 @@ app.get('/api/leboncoin/search', async (req, res) => {
       count: items.length,
       page: pageNum,
       items,
-      source: country === 'de' ? 'Kleinanzeigen (Puppeteer)' : 'LeBonCoin (Puppeteer)',
+      source: getSourceName(country),
     });
   } catch (error) {
     if (browser) await browser.close();
@@ -442,7 +549,7 @@ app.get('/api/vinted/search', async (req, res) => {
     const estimatedPagesPerVintedPage = Math.ceil(estimatedItemsPerVintedPage / itemsPerPage);
     const vintedPageToLoad = Math.ceil(pageNum / estimatedPagesPerVintedPage);
 
-    const domain = country === 'de' ? 'www.vinted.de' : 'www.vinted.fr';
+    const domain = getVintedDomain(country);
     // Vinted search URL format, category 3002 = Electronics, Video Games
     const searchUrl = `https://${domain}/catalog?search_text=${encodeURIComponent(query)}&catalog[]=3002&page=${vintedPageToLoad}`;
 
@@ -684,13 +791,7 @@ app.get('/api/ebay/browse', async (req, res) => {
       return res.status(500).json({ success: false, error: 'Missing EBAY_APP_ID or EBAY_CLIENT_SECRET' });
     }
 
-    // Map country codes to eBay marketplace IDs
-    const countryToMarketplace = {
-      'fr': { id: 'EBAY_FR', country: 'FR' },
-      'de': { id: 'EBAY_DE', country: 'DE' }
-    };
-
-    const marketplace = countryToMarketplace[country] || countryToMarketplace['fr'];
+    const marketplace = getEbayMarketplace(country);
 
     console.log(`🔍 Searching eBay Browse API for: "${query}" (country: ${country}, page ${pageNum})`);
 

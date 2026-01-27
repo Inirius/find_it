@@ -12,6 +12,28 @@ type Item = {
   shipping: string | null;
 };
 
+// Helper functions for country-specific labels
+const getCountryName = (country: string): string => {
+  switch (country) {
+    case 'de': return 'Allemagne';
+    case 'be': return 'Belgique';
+    default: return 'France';
+  }
+};
+
+const getLeboncoinName = (country: string): string => {
+  switch (country) {
+    case 'de': return 'Kleinanzeigen';
+    case 'be': return '2ememain.be';
+    default: return 'LeBonCoin';
+  }
+};
+
+const getVintedLabel = (country: string): string => {
+  return `Vinted (${country.toUpperCase()})`;
+};
+
+
 function App() {
   const [query, setQuery] = useState('drone');
   const [ebayItems, setEbayItems] = useState<Item[]>([]);
@@ -27,7 +49,7 @@ function App() {
     leboncoin: true,
     vinted: true
   });
-  const [country, setCountry] = useState('fr'); // 'fr' or 'de'
+  const [country, setCountry] = useState('fr'); // 'fr', 'de', or 'be'
   
   // Pagination states
   const [pageEbay, setPageEbay] = useState(1);
@@ -216,6 +238,7 @@ function App() {
           >
             <option value="fr">🇫🇷 France</option>
             <option value="de">🇩🇪 Allemagne</option>
+            <option value="be">🇧🇪 Belgique</option>
           </select>
         </div>
         
@@ -226,7 +249,7 @@ function App() {
             onChange={(e) => setSources({...sources, ebay: e.target.checked})}
             style={{width: 16, height: 16, cursor: 'pointer'}}
           />
-          <span>eBay {country === 'de' ? 'Allemagne' : 'France'}</span>
+          <span>eBay {getCountryName(country)}</span>
         </label>
 
         <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
@@ -236,7 +259,7 @@ function App() {
             onChange={(e) => setSources({...sources, leboncoin: e.target.checked})}
             style={{width: 16, height: 16, cursor: 'pointer'}}
           />
-          <span>{country === 'de' ? 'Kleinanzeigen' : 'LeBonCoin'}</span>
+          <span>{getLeboncoinName(country)}</span>
         </label>
 
         <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
@@ -246,7 +269,7 @@ function App() {
             onChange={(e) => setSources({...sources, vinted: e.target.checked})}
             style={{width: 16, height: 16, cursor: 'pointer'}}
           />
-          <span>Vinted {country === 'de' ? '(DE)' : '(FR)'}</span>
+          <span>{getVintedLabel(country)}</span>
         </label>
       </div>
 
@@ -296,7 +319,7 @@ function App() {
 
         {sources.ebay && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
-            <h2 style={{fontSize: '18px', marginBottom: 0}}>eBay {country === 'de' ? 'Allemagne' : 'France'}</h2>
+            <h2 style={{fontSize: '18px', marginBottom: 0}}>eBay {getCountryName(country)}</h2>
             {ebayItems.map((item, index) => (
               <EbayCard
                 key={index}
@@ -316,7 +339,7 @@ function App() {
 
         {sources.leboncoin && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
-            <h2 style={{fontSize: '18px', marginBottom: 0}}>{country === 'de' ? 'Kleinanzeigen' : 'LeBonCoin'}</h2>
+            <h2 style={{fontSize: '18px', marginBottom: 0}}>{getLeboncoinName(country)}</h2>
             {leboncoinItems.map((item, index) => (
               <LeboncoinCard
                 key={index}
@@ -329,7 +352,7 @@ function App() {
               />
             ))}
             {leboncoinItems.length === 0 && !loading && (
-              <p style={{color: '#999'}}>Aucun résultat LeBonCoin</p>
+              <p style={{color: '#999'}}>Aucun résultat {getLeboncoinName(country)}</p>
             )}
           </div>
         )}
