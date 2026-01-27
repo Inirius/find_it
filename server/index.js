@@ -225,6 +225,19 @@ function getCurrency(country) {
   return currencies[country] || currencies.fr;
 }
 
+function getItemsPerPage(country) {
+  const itemsPerPage = {
+    fr: 37,  // LeBonCoin
+    de: 50,  // Kleinanzeigen
+    be: 50,  // 2ememain.be
+    at: 50,  // Willhaben
+    es: 50,  // Wallapop
+    nl: 50,  // Marktplaats
+    pl: 50,  // OLX
+  };
+  return itemsPerPage[country] || 50;
+}
+
 function getSelector(country) {
   const selectors = {
     fr: '[data-test-id="ad"]',
@@ -544,7 +557,29 @@ app.get('/api/leboncoin/search', async (req, res) => {
       await page_obj.waitForSelector(selector, { timeout: 25000 });
     } catch (waitErr) {
       console.warn('Selector wait timed out, waiting extra 3s before proceeding:', waitErr.message);
-      await page_obj.waitForTimeout(3000);
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+
+    // Scroll to load lazy-loaded images (especially for OLX.pl)
+    if (country === 'pl') {
+      console.log('📜 Scrolling to load lazy-loaded images...');
+      await page_obj.evaluate(() => {
+        return new Promise((resolve) => {
+          let scrolls = 0;
+          const maxScrolls = 10; // Increased scrolls
+          const scrollInterval = setInterval(() => {
+            window.scrollBy(0, window.innerHeight);
+            scrolls++;
+            if (scrolls >= maxScrolls) {
+              clearInterval(scrollInterval);
+              // Scroll back to top to load all images
+              window.scrollTo(0, 0);
+              resolve();
+            }
+          },325); 
+        });
+      });
+      await new Promise(resolve => setTimeout(resolve, 3250)); // Increased wait time for images to load
     }
 
     // Extract data from the page
@@ -642,7 +677,7 @@ app.get('/api/vinted/search', async (req, res) => {
   try {
     const { query = 'drone', page = '1', country = 'fr' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const itemsPerPage = 37;
+    const itemsPerPage = getItemsPerPage(country);
 
     // Calculate which Vinted page to load based on frontend page number
     // Each Vinted page has ~156 items = ~4 frontend pages (156/37 = 4.2)
@@ -805,7 +840,8 @@ app.get('/api/vinted/search', async (req, res) => {
 // eBay scraping endpoint
 app.get('/api/ebay/search', async (req, res) => {
   try {
-    const { query = 'cabela 2013 wii u' } = req.query;
+    const { query = 'cabela 2013 wii u', country = 'fr' } = req.query;
+    const itemsPerPage = getItemsPerPage(country);
     
     // Check if we're in DEMO mode
     if (EBAY_APP_ID === 'DEMO_MODE') {
@@ -828,7 +864,7 @@ app.get('/api/ebay/search', async (req, res) => {
         'RESPONSE-DATA-FORMAT': 'JSON',
         'REST-PAYLOAD': true,
         'keywords': query,
-        'paginationInput.entriesPerPage': '37',
+        'paginationInput.entriesPerPage': String(itemsPerPage),
         'GLOBAL-ID': 'EBAY-FR',
       },
       timeout: 12000
@@ -888,7 +924,7 @@ app.get('/api/ebay/browse', async (req, res) => {
   try {
     const { query = 'cabela 2013 wii u', page = '1', country = 'fr' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const itemsPerPage = 37;
+    const itemsPerPage = getItemsPerPage(country);
     const offset = (pageNum - 1) * itemsPerPage;
 
     if (!EBAY_APP_ID || !EBAY_CLIENT_SECRET) {
@@ -907,7 +943,7 @@ app.get('/api/ebay/browse', async (req, res) => {
     const response = await axios.get(apiUrl, {
       params: {
         q: query,
-        limit: 37,
+        limit: itemsPerPage,
         offset: offset,
         marketplace_id: marketplace.id,
         filter: `itemLocationCountry:${marketplace.country}`,

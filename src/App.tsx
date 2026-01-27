@@ -327,7 +327,22 @@ function App() {
         const gridTemplateColumns = visibleColumns === 1 ? '1fr' : visibleColumns === 2 ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))';
         const maxWidth = visibleColumns === 1 ? '400px' : visibleColumns === 2 ? '800px' : undefined;
         return (
-          <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns, gap: 16, alignItems: 'start', maxWidth, marginLeft: 'auto', marginRight: 'auto'}}>
+          <div style={{position: 'relative', paddingTop: 8}}>
+            {/* Voile de chargement */}
+            {loading && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(70, 70, 70, 0.4)',
+                backdropFilter: 'blur(1px)',
+                zIndex: 100,
+                pointerEvents: 'none'
+              }} />
+            )}
+            <div style={{paddingTop: 8, display: 'grid', gridTemplateColumns, gap: 16, alignItems: 'start', maxWidth, marginLeft: 'auto', marginRight: 'auto', opacity: loading ? 0.6 : 1, transition: 'opacity 0.2s ease-in-out'}}>
 
         {sources.ebay && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
@@ -388,10 +403,10 @@ function App() {
             )}
           </div>
         )}
+            </div>
           </div>
         );
       })()}
-
 
       {/* Navigation globale pour tous les sites */}
       {(ebayItems.length > 0 || leboncoinItems.length > 0 || vintedItems.length > 0) && (
