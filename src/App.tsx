@@ -386,7 +386,7 @@ function App() {
 
         {sources.vinted && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
-            <h2 style={{fontSize: '18px', marginBottom: 0}}>Vinted</h2>
+            <h2 style={{fontSize: '18px', marginBottom: 0}}>{getVintedLabel(country)}</h2>
             {vintedItems.map((item, index) => (
               <LeboncoinCard
                 key={index}
