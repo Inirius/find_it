@@ -628,30 +628,196 @@ app.get('/api/leboncoin/search', async (req, res) => {
       try {
         // Scroll to bottom to make button appear
         await page_obj.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 2500));
         
-        // Click "Cargar más" button once to activate infinite scroll
-        const buttonFound = await page_obj.evaluate(() => {
-          const button = document.querySelector('walla-button[text="Cargar más"]');
-          if (button) {
-            button.click();
-            return true;
-          }
-          return false;
+        // DEBUG: Log all buttons found on the page
+        const allButtonsInfo = await page_obj.evaluate(() => {
+          const buttons = [];
+          
+          // Check all walla-button elements
+          document.querySelectorAll('walla-button').forEach((btn, index) => {
+            buttons.push({
+              type: 'walla-button',
+              index: index,
+              text: btn.getAttribute('text'),
+              buttonType: btn.getAttribute('button-type'),
+              behaviourType: btn.getAttribute('behaviour-type'),
+              innerHTML: btn.innerHTML.substring(0, 100),
+              outerHTML: btn.outerHTML.substring(0, 200),
+              visible: btn.offsetParent !== null,
+              boundingBox: btn.getBoundingClientRect ? {
+                top: btn.getBoundingClientRect().top,
+                left: btn.getBoundingClientRect().left,
+                width: btn.getBoundingClientRect().width,
+                height: btn.getBoundingClientRect().height
+              } : null
+            });
+          });
+          
+          // Check all regular buttons
+          document.querySelectorAll('button').forEach((btn, index) => {
+            const text = btn.textContent.trim();
+            if (text.toLowerCase().includes('cargar') || text.toLowerCase().includes('load')) {
+              buttons.push({
+                type: 'button',
+                index: index,
+                textContent: text.substring(0, 100),
+                className: btn.className,
+                visible: btn.offsetParent !== null
+              });
+            }
+          });
+          
+          return buttons;
         });
         
-        if (buttonFound) {
-          console.log('  ✅ Clicked "Cargar más" - infinite scroll activated');
-          await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('  🔍 DEBUG - All buttons found on page:', JSON.stringify(allButtonsInfo, null, 2));
+        
+        // Web components with shadow DOM require special handling
+        let buttonClicked = false;
+        try {
+          console.log('  🔍 Attempting to click shadow DOM button...');
           
-          // Now scroll multiple times to load more results
-          // First load has itemsPerPage items, each scroll loads ~20 more
-          const scrollsNeeded = Math.max(1, Math.ceil((totalItemsNeeded - itemsPerPage) / 20));
-          for (let i = 0; i < scrollsNeeded; i++) {
-            await page_obj.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            console.log(`  📄 Scroll ${i + 1}/${scrollsNeeded}`);
+          // Access shadow DOM and click the real button inside
+          buttonClicked = await page_obj.evaluate(() => {
+            const wallaButton = document.querySelector('walla-button[text="Cargar más"]');
+            if (!wallaButton) {
+              console.log('walla-button not found');
+              return false;
+            }
+            
+            console.log('walla-button found, checking shadow DOM...');
+            
+            // Access shadow DOM
+            const shadowRoot = wallaButton.shadowRoot;
+            if (!shadowRoot) {
+              console.log('No shadow root found, trying direct click');
+              wallaButton.click();
+              return true;
+            }
+            
+            console.log('Shadow root found, looking for button inside...');
+            
+            // Find the actual button inside shadow DOM
+            const realButton = shadowRoot.querySelector('button');
+            if (realButton) {
+              console.log('Real button found in shadow DOM, clicking...');
+              realButton.click();
+              
+              // Also dispatch events to ensure it's processed
+              realButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+              realButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+              realButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              
+              return true;
+            }
+            
+            console.log('No button found in shadow DOM, trying walla-button click');
+            wallaButton.click();
+            return true;
+          });
+          
+          if (buttonClicked) {
+            console.log('  ✅ Shadow DOM button clicked');
+            
+            // Wait for network activity to confirm click worked
+            const networkDetected = await new Promise(resolve => {
+              let timeout = setTimeout(() => {
+                console.log('  ⚠️ No network activity detected after 8s');
+                resolve(false);
+              }, 8000);
+              
+              const responseHandler = (response) => {
+                const url = response.url();
+                if (url.includes('wallapop.com') && (url.includes('/api/') || url.includes('/search'))) {
+                  console.log('  📡 Network response detected:', url.substring(0, 100));
+                  clearTimeout(timeout);
+                  page_obj.off('response', responseHandler);
+                  resolve(true);
+                }
+              };
+              
+              page_obj.on('response', responseHandler);
+            });
+            
+            if (networkDetected) {
+              await new Promise(resolve => setTimeout(resolve, 3000)); // Wait for items to load
+            }
+          } else {
+            console.log('  ❌ Failed to click shadow DOM button');
           }
+        } catch (err) {
+          console.log('  ⚠️ Button click error:', err.message);
+        }
+        
+        if (buttonClicked) {
+          console.log('  ✅ Clicked "Cargar más" button - waiting for infinite scroll activation...');
+          await new Promise(resolve => setTimeout(resolve, 4000)); // Longer wait for activation
+          
+          // Check if infinite scroll is really activated by checking item count
+          let currentItemCount = await page_obj.evaluate(() => {
+            return document.querySelectorAll('a[href*="/item/"]').length;
+          });
+          console.log(`  📊 After button click: ${currentItemCount} items`);
+          
+          // Strategy: Click button multiple times if needed and scroll between clicks
+          const maxAttempts = 3;
+          let attempt = 0;
+          let stagnantAttempts = 0;
+          let previousCount = currentItemCount;
+          
+          console.log(`  📄 Target: ${totalItemsNeeded} items`);
+          
+          while (attempt < maxAttempts && currentItemCount < totalItemsNeeded) {
+            attempt++;
+            
+            // Scroll to bottom to trigger lazy loading
+            await page_obj.evaluate(() => {
+              window.scrollTo(0, document.body.scrollHeight);
+            });
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            
+            // Check for new items
+            currentItemCount = await page_obj.evaluate(() => {
+              return document.querySelectorAll('a[href*="/item/"]').length;
+            });
+            
+            const newItems = currentItemCount - previousCount;
+            console.log(`  📄 Attempt ${attempt}: ${currentItemCount} items (${newItems > 0 ? '+' + newItems : 'no new items'})`);
+            
+            if (newItems === 0) {
+              stagnantAttempts++;
+              
+              // Try clicking the button again if it exists (using Puppeteer click)
+              let buttonReclicked = false;
+              try {
+                const buttonExists = await page_obj.$('walla-button[text="Cargar más"]');
+                if (buttonExists) {
+                  await page_obj.click('walla-button[text="Cargar más"]');
+                  buttonReclicked = true;
+                  console.log(`  🔄 Re-clicked button with Puppeteer (stagnant: ${stagnantAttempts})`);
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+                  stagnantAttempts = 0; // Reset on successful re-click
+                } else if (stagnantAttempts >= 3) {
+                  console.log(`  ⛔ Stopping: No items loading after ${stagnantAttempts} stagnant attempts`);
+                  break;
+                }
+              } catch (recheckErr) {
+                if (stagnantAttempts >= 3) {
+                  console.log(`  ⛔ Stopping: No items loading after ${stagnantAttempts} stagnant attempts`);
+                  break;
+                }
+              }
+            } else {
+              stagnantAttempts = 0;
+            }
+            
+            previousCount = currentItemCount;
+          }
+          
+          console.log(`  ✅ Final count: ${currentItemCount} items loaded`);
+        } else {
+          console.warn('  ⚠️ Button "Cargar más" not found - will use initial items only');
         }
       } catch (err) {
         console.warn('  ⚠️ Could not activate Wallapop infinite scroll:', err.message);
