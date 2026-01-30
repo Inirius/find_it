@@ -14,31 +14,62 @@ type Item = {
 
 // Helper functions for country-specific labels
 const getCountryName = (country: string): string => {
-  switch (country) {
-    case 'de': return 'Allemagne';
-    case 'be': return 'Belgique';
-    case 'at': return 'Autriche';
-    case 'es': return 'Espagne';
-    case 'nl': return 'Pays-Bas';
-    case 'pl': return 'Pologne';
-    default: return 'France';
-  }
+  const names: { [key: string]: string } = {
+    al: 'Albanie', am: 'Arménie', au: 'Australie', at: 'Autriche',
+    ba: 'Bosnie-Herzégovine', be: 'Belgique', bg: 'Bulgarie', by: 'Biélorussie',
+    cy: 'Chypre', cz: 'Tchéquie', de: 'Allemagne', dk: 'Danemark',
+    ee: 'Estonie', es: 'Espagne', fi: 'Finlande', fr: 'France',
+    gb: 'Royaume-Uni', ge: 'Géorgie', gr: 'Grèce', hr: 'Croatie',
+    hu: 'Hongrie', ie: 'Irlande', is: 'Islande', it: 'Italie',
+    kz: 'Kazakhstan', lt: 'Lituanie', lv: 'Lettonie', mk: 'Macédoine du Nord',
+    md: 'Moldavie', mt: 'Malte', nl: 'Pays-Bas', no: 'Norvège',
+    pl: 'Pologne', pt: 'Portugal', ro: 'Roumanie', ru: 'Russie',
+    rs: 'Serbie', se: 'Suède', si: 'Slovénie', sk: 'Slovaquie',
+    tr: 'Turquie', ua: 'Ukraine', xk: 'Kosovo',
+  };
+  return names[country] || 'France';
 };
 
 const getLeboncoinName = (country: string): string => {
-  switch (country) {
-    case 'de': return 'Kleinanzeigen';
-    case 'be': return '2ememain.be';
-    case 'at': return 'Willhaben';
-    case 'es': return 'Wallapop';
-    case 'nl': return 'Marktplaats';
-    case 'pl': return 'Olx.pl';
-    default: return 'LeBonCoin';
-  }
+  const names: { [key: string]: string } = {
+    al: 'Merrjep', am: 'List.am', au: 'Gumtree', at: 'Willhaben',
+    ba: 'OLX', be: '2ememain.be', bg: 'OLX', by: 'Kufar',
+    cy: 'Vendora', cz: 'Sbazar', de: 'Kleinanzeigen', dk: 'DBA',
+    ee: 'Osta', es: 'Wallapop', fi: 'Huuto', fr: 'LeBonCoin',
+    gb: 'Gumtree', ge: 'MyMarket', gr: 'Vendora', hr: 'Njuskalo',
+    hu: 'Jofogas', ie: 'DoneDeal', is: 'Bland', it: 'Subito',
+    kz: 'OLX', lt: 'Skelbiu', lv: 'SS.lv', mk: 'Pazar3',
+    md: '999.md', mt: 'MaltaPark', nl: 'Marktplaats', no: 'Finn',
+    pl: 'OLX', pt: 'OLX', ro: 'OLX', ru: 'Avito',
+    rs: 'Kupujem Prodajem', se: 'Tradera', si: 'Bolha', sk: 'Bazos',
+    tr: 'LetGo', ua: 'OLX', xk: 'Merrjep',
+  };
+  return names[country] || 'LeBonCoin';
 };
 
 const getVintedLabel = (country: string): string => {
   return `Vinted (${country.toUpperCase()})`;
+};
+
+// eBay Browse API supported countries
+const hasEbaySupportBrowse = (country: string): boolean => {
+  const supportedCountries = {
+    gb: true, de: true, us: true, au: true, it: true, ca: true,
+    es: true, fr: true, hk: true, sg: true, ie: true, pl: true,
+    nl: true, at: true, ch: true, be: true,
+  };
+  return (supportedCountries as { [key: string]: boolean })[country] || false;
+};
+
+// Vinted supported countries
+const hasVintedSupport = (country: string): boolean => {
+  const vintedCountries = {
+    at: true, be: true, cz: true, de: true, dk: true, ee: true,
+    es: true, fi: true, fr: true, gb: true, gr: true, hr: true,
+    hu: true, ie: true, it: true, lt: true, lv: true, nl: true,
+    pl: true, pt: true, ro: true, se: true, si: true, sk: true,
+  };
+  return (vintedCountries as { [key: string]: boolean })[country] || false;
 };
 
 
@@ -66,18 +97,17 @@ function App() {
   
   // Total items/pages for each source
   const [totalEbay, setTotalEbay] = useState(0);
-  const [totalLbc, setTotalLbc] = useState(0);
   const [totalVinted, setTotalVinted] = useState(0);
 
   const fetchItems = async (q: string, pEbay = 1, pLbc = 1, pVinted = 1) => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch only from selected sources
+      // Fetch only from selected sources (and only if supported in this country)
       const fetchPromises: Promise<Response>[] = [];
       const sourceOrder: string[] = [];
       
-      if (sources.ebay) {
+      if (sources.ebay && hasEbaySupportBrowse(country)) {
         fetchPromises.push(fetch(`http://localhost:3002/api/ebay/browse?query=${encodeURIComponent(q)}&page=${pEbay}&country=${country}`));
         sourceOrder.push('ebay');
       }
@@ -85,7 +115,7 @@ function App() {
         fetchPromises.push(fetch(`http://localhost:3002/api/leboncoin/search?query=${encodeURIComponent(q)}&page=${pLbc}&country=${country}`));
         sourceOrder.push('leboncoin');
       }
-      if (sources.vinted) {
+      if (sources.vinted && hasVintedSupport(country)) {
         fetchPromises.push(fetch(`http://localhost:3002/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}&country=${country}`));
         sourceOrder.push('vinted');
       }
@@ -124,14 +154,11 @@ function App() {
         leboncoinData = await leboncoinRes.json();
         if (leboncoinData.success) {
           setLeboncoinItems(leboncoinData.items || []);
-          setTotalLbc(leboncoinData.total || 0);
         } else {
           setLeboncoinItems([]);
-          setTotalLbc(0);
         }
       } else {
         setLeboncoinItems([]);
-        setTotalLbc(0);
       }
 
       if (vintedRes && vintedRes.ok) {
@@ -162,7 +189,6 @@ function App() {
       setLeboncoinItems([]);
       setVintedItems([]);
       setTotalEbay(0);
-      setTotalLbc(0);
       setTotalVinted(0);
       setError(String(err || 'Fetch error - ensure backend is running on port 3002'));
     } finally {
@@ -228,7 +254,21 @@ function App() {
           <select
             value={country}
             onChange={(e) => {
-              setCountry(e.target.value);
+              const newCountry = e.target.value;
+              const newSources = { ...sources };
+              
+              // Désactiver eBay si non supporté
+              if (!hasEbaySupportBrowse(newCountry)) {
+                newSources.ebay = false;
+              }
+              
+              // Désactiver Vinted si non supporté
+              if (!hasVintedSupport(newCountry)) {
+                newSources.vinted = false;
+              }
+              
+              setCountry(newCountry);
+              setSources(newSources);
               setPageEbay(1);
               setPageLbc(1);
               setPageVinted(1);
@@ -246,23 +286,61 @@ function App() {
           >
             <option value="fr">🇫🇷 France</option>
             <option value="de">🇩🇪 Allemagne</option>
-            <option value="be">🇧🇪 Belgique</option>
             <option value="at">🇦🇹 Autriche</option>
+            <option value="be">🇧🇪 Belgique</option>
             <option value="es">🇪🇸 Espagne</option>
             <option value="nl">🇳🇱 Pays-Bas</option>
             <option value="pl">🇵🇱 Pologne</option>
+            <option value="au">🇦🇺 Australie</option>
+            <option value="ba">🇧🇦 Bosnie-Herzégovine</option>
+            <option value="bg">🇧🇬 Bulgarie</option>
+            <option value="by">🇧🇾 Biélorussie</option>
+            <option value="cy">🇨🇾 Chypre</option>
+            <option value="cz">🇨🇿 Tchéquie</option>
+            <option value="dk">🇩🇰 Danemark</option>
+            <option value="ee">🇪🇪 Estonie</option>
+            <option value="fi">🇫🇮 Finlande</option>
+            <option value="gb">🇬🇧 Royaume-Uni</option>
+            <option value="ge">🇬🇪 Géorgie</option>
+            <option value="gr">🇬🇷 Grèce</option>
+            <option value="hr">🇭🇷 Croatie</option>
+            <option value="hu">🇭🇺 Hongrie</option>
+            <option value="ie">🇮🇪 Irlande</option>
+            <option value="is">🇮🇸 Islande</option>
+            <option value="it">🇮🇹 Italie</option>
+            <option value="kz">🇰🇿 Kazakhstan</option>
+            <option value="lt">🇱🇹 Lituanie</option>
+            <option value="lv">🇱🇻 Lettonie</option>
+            <option value="mk">🇲🇰 Macédoine du Nord</option>
+            <option value="md">🇲🇩 Moldavie</option>
+            <option value="mt">🇲🇹 Malte</option>
+            <option value="no">🇳🇴 Norvège</option>
+            <option value="pt">🇵🇹 Portugal</option>
+            <option value="ro">🇷🇴 Roumanie</option>
+            <option value="ru">🇷🇺 Russie</option>
+            <option value="rs">🇷🇸 Serbie</option>
+            <option value="se">🇸🇪 Suède</option>
+            <option value="si">🇸🇮 Slovénie</option>
+            <option value="sk">🇸🇰 Slovaquie</option>
+            <option value="tr">🇹🇷 Turquie</option>
+            <option value="ua">🇺🇦 Ukraine</option>
+            <option value="al">🇦🇱 Albanie</option>
+            <option value="am">🇦🇲 Arménie</option>
+            <option value="xk">🇽🇰 Kosovo</option>
           </select>
         </div>
         
-        <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
-          <input
-            type="checkbox"
-            checked={sources.ebay}
-            onChange={(e) => setSources({...sources, ebay: e.target.checked})}
-            style={{width: 16, height: 16, cursor: 'pointer'}}
-          />
-          <span>eBay {getCountryName(country)}</span>
-        </label>
+        {hasEbaySupportBrowse(country) && (
+          <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
+            <input
+              type="checkbox"
+              checked={sources.ebay}
+              onChange={(e) => setSources({...sources, ebay: e.target.checked})}
+              style={{width: 16, height: 16, cursor: 'pointer'}}
+            />
+            <span>eBay {getCountryName(country)}</span>
+          </label>
+        )}
 
         <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
           <input
@@ -274,15 +352,17 @@ function App() {
           <span>{getLeboncoinName(country)}</span>
         </label>
 
-        <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
-          <input
-            type="checkbox"
-            checked={sources.vinted}
-            onChange={(e) => setSources({...sources, vinted: e.target.checked})}
-            style={{width: 16, height: 16, cursor: 'pointer'}}
-          />
-          <span>{getVintedLabel(country)}</span>
-        </label>
+        {hasVintedSupport(country) && (
+          <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
+            <input
+              type="checkbox"
+              checked={sources.vinted}
+              onChange={(e) => setSources({...sources, vinted: e.target.checked})}
+              style={{width: 16, height: 16, cursor: 'pointer'}}
+            />
+            <span>{getVintedLabel(country)}</span>
+          </label>
+        )}
       </div>
 
       {/* Overlay when sidebar is open */}

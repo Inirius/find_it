@@ -31,6 +31,51 @@ const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET || null;
 const KEEPALIVE_URL = process.env.KEEPALIVE_URL || null;
 const KEEPALIVE_INTERVAL_MS = Number(process.env.KEEPALIVE_INTERVAL_MS || 240000); // Default: 4 minutes
 
+// eBay Site ID mapping (https://developer.ebay.com/devzone/finding-api/callref/types/SiteCodeType.html)
+function getEbaySiteId(country) {
+  const siteIds = {
+    au: '15',  // Australia
+    at: '16',  // Austria
+    be: '23',  // Belgium (Dutch)
+    be_fr: '71', // Belgium (French) - use 'be' for Dutch
+    ca: '2',   // Canada
+    ch: '193', // Switzerland
+    de: '77',  // Germany
+    es: '186', // Spain
+    fr: '71',  // France
+    gb: '3',   // United Kingdom
+    ie: '205', // Ireland
+    it: '101', // Italy
+    nl: '146', // Netherlands
+    pl: '212', // Poland
+    ru: '11',  // Russia
+    sg: '216', // Singapore
+    us: '0',   // United States
+  };
+  return siteIds[country] || '71'; // Default to France
+}
+
+// eBay Browse API supported countries
+function hasEbaySupportBrowse(country) {
+  const supportedCountries = {
+    gb: true, de: true, us: true, au: true, it: true, ca: true,
+    es: true, fr: true, hk: true, sg: true, ie: true, pl: true,
+    nl: true, at: true, ch: true, be: true,
+  };
+  return supportedCountries[country] || false;
+}
+
+// Vinted country support check
+function hasVintedSupport(country) {
+  const vintedCountries = {
+    at: true, be: true, cz: true, de: true, dk: true, ee: true,
+    es: true, fi: true, fr: true, gb: true, gr: true, hr: true,
+    hu: true, ie: true, it: true, lt: true, lv: true, nl: true,
+    pl: true, pt: true, ro: true, se: true, si: true, sk: true,
+  };
+  return vintedCountries[country] || false;
+}
+
 
 // Simple in-memory token cache for Browse API
 let browseToken = null;
@@ -170,13 +215,49 @@ app.all('/api/ebay/notifications/account-deletion', (req, res) => {
 // Helper functions for country-specific configuration
 function getCountryConfig(country) {
   const configs = {
-    fr: { domain: 'www.leboncoin.fr', name: 'LeBonCoin' },
-    de: { domain: 'www.kleinanzeigen.de', name: 'Kleinanzeigen' },
-    be: { domain: 'www.2ememain.be', name: '2ememain.be' },
+    al: { domain: 'merrjep.al', name: 'Merrjep' },
+    am: { domain: 'list.am', name: 'List.am' },
+    au: { domain: 'gumtree.com.au', name: 'Gumtree' },
     at: { domain: 'www.willhaben.at', name: 'Willhaben' },
+    ba: { domain: 'olx.ba', name: 'OLX' },
+    be: { domain: 'www.2ememain.be', name: '2ememain.be' },
+    bg: { domain: 'olx.bg', name: 'OLX' },
+    by: { domain: 'kufar.by', name: 'Kufar' },
+    cy: { domain: 'vendora.cy', name: 'Vendora' },
+    cz: { domain: 'sbazar.cz', name: 'Sbazar' },
+    de: { domain: 'www.kleinanzeigen.de', name: 'Kleinanzeigen' },
+    dk: { domain: 'dba.dk', name: 'DBA' },
+    ee: { domain: 'osta.ee', name: 'Osta' },
     es: { domain: 'es.wallapop.com', name: 'Wallapop' },
+    fi: { domain: 'huuto.net', name: 'Huuto' },
+    fr: { domain: 'www.leboncoin.fr', name: 'LeBonCoin' },
+    gb: { domain: 'gumtree.com', name: 'Gumtree' },
+    ge: { domain: 'mymarket.ge', name: 'MyMarket' },
+    gr: { domain: 'vendora.gr', name: 'Vendora' },
+    hr: { domain: 'njuskalo.hr', name: 'Njuskalo' },
+    hu: { domain: 'jofogas.hu', name: 'Jofogas' },
+    ie: { domain: 'donedeal.ie', name: 'DoneDeal' },
+    is: { domain: 'bland.is', name: 'Bland' },
+    it: { domain: 'subito.it', name: 'Subito' },
+    kz: { domain: 'olx.kz', name: 'OLX' },
+    lt: { domain: 'skelbiu.lt', name: 'Skelbiu' },
+    lv: { domain: 'ss.lv', name: 'SS.lv' },
+    mk: { domain: 'pazar3.mk', name: 'Pazar3' },
+    md: { domain: '999.md', name: '999.md' },
+    mt: { domain: 'maltapark.com', name: 'MaltaPark' },
     nl: { domain: 'www.marktplaats.nl', name: 'Marktplaats' },
+    no: { domain: 'finn.no', name: 'Finn' },
     pl: { domain: 'www.olx.pl', name: 'OLX' },
+    pt: { domain: 'olx.pt', name: 'OLX' },
+    ro: { domain: 'olx.ro', name: 'OLX' },
+    ru: { domain: 'avito.ru', name: 'Avito' },
+    rs: { domain: 'kupujemprodajem.com', name: 'Kupujem Prodajem' },
+    se: { domain: 'tradera.com', name: 'Tradera' },
+    si: { domain: 'bolha.com', name: 'Bolha' },
+    sk: { domain: 'bazos.sk', name: 'Bazos' },
+    tr: { domain: 'letgo.com', name: 'LetGo' },
+    ua: { domain: 'olx.ua', name: 'OLX' },
+    xk: { domain: 'merrjep.com', name: 'Merrjep' },
   };
   return configs[country] || configs.fr;
 }
@@ -200,26 +281,79 @@ function getSourceName(country) {
 
 function getCurrency(country) {
   const currencies = {
-    fr: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },  // Format FR: 250,00 €
-    de: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
-    be: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    // EUR countries
     at: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    be: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    cz: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    de: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    ee: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
     es: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    fi: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    fr: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    gr: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    ie: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    it: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    lt: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    lv: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
     nl: { symbol: '€', pattern: '(€\\s*\\d+,\\d{2})' },  // Format NL: € 250,00
-    pl: { symbol: 'zł', pattern: '(\\d+(?:\\s|,)\\d{2}\\s*zł)' },
+    pt: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    sk: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    si: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },
+    // Non-EUR countries
+    al: { symbol: 'L', pattern: '(\\d+\\s*L)' },  // Albanian Lek
+    am: { symbol: '֏', pattern: '(\\d+\\s*֏)' },  // Armenian Dram
+    au: { symbol: 'A\\$', pattern: '(A\\$\\s*\\d+)' },  // Australian Dollar
+    ba: { symbol: 'KM', pattern: '(\\d+\\s*KM)' },  // Convertible Mark
+    bg: { symbol: 'лв', pattern: '(\\d+\\s*лв)' },  // Bulgarian Lev
+    by: { symbol: 'Br', pattern: '(\\d+\\s*Br)' },  // Belarusian Ruble
+    cy: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },  // Cyprus Euro
+    dk: { symbol: 'kr', pattern: '(\\d+\\s*kr)' },  // Danish Krone
+    gb: { symbol: '£', pattern: '(£\\s*\\d+)' },  // British Pound
+    ge: { symbol: '₾', pattern: '(\\d+\\s*₾)' },  // Georgian Lari
+    hr: { symbol: 'kn', pattern: '(\\d+\\s*kn)' },  // Croatian Kuna
+    hu: { symbol: 'Ft', pattern: '(\\d+\\s*Ft)' },  // Hungarian Forint
+    is: { symbol: 'kr', pattern: '(\\d+\\s*kr)' },  // Icelandic Króna
+    kz: { symbol: '₸', pattern: '(\\d+\\s*₸)' },  // Kazakhstani Tenge
+    md: { symbol: 'L', pattern: '(\\d+\\s*L)' },  // Moldovan Leu
+    mk: { symbol: 'ден', pattern: '(\\d+\\s*ден)' },  // Macedonian Denar
+    mt: { symbol: '€', pattern: '(\\d+,\\d{2}\\s*€)' },  // Malta Euro
+    no: { symbol: 'kr', pattern: '(\\d+\\s*kr)' },  // Norwegian Krone
+    pl: { symbol: 'zł', pattern: '(\\d+(?:\\s|,)\\d{2}\\s*zł)' },  // Polish Zloty
+    ro: { symbol: 'lei', pattern: '(\\d+\\s*lei)' },  // Romanian Leu
+    ru: { symbol: '₽', pattern: '(\\d+\\s*₽)' },  // Russian Ruble
+    rs: { symbol: 'дин', pattern: '(\\d+\\s*дин)' },  // Serbian Dinar
+    se: { symbol: 'kr', pattern: '(\\d+\\s*kr)' },  // Swedish Krona
+    tr: { symbol: '₺', pattern: '(\\d+\\s*₺)' },  // Turkish Lira
+    ua: { symbol: '₴', pattern: '(\\d+\\s*₴)' },  // Ukrainian Hryvnia
+    xk: { symbol: 'L', pattern: '(\\d+\\s*L)' },  // Kosovo Lek
   };
   return currencies[country] || currencies.fr;
 }
 
 function getItemsPerPage(country) {
   const itemsPerPage = {
-    fr: 37,  // LeBonCoin
-    de: 50,  // Kleinanzeigen
-    be: 50,  // 2ememain.be
-    at: 30,  // Willhaben
-    es: 40,  // Wallapop
-    nl: 50,  // Marktplaats
-    pl: 50,  // OLX
+    al: 50, de: 50, // Merrjep, Kleinanzeigen
+    am: 50, at: 30, // List.am, Willhaben
+    au: 50, ba: 50, // Gumtree, OLX
+    be: 50, bg: 50, // 2ememain.be, OLX
+    by: 50, cy: 50, // Kufar, Vendora
+    cz: 50, dk: 50, // Sbazar, DBA
+    ee: 50, es: 40, // Osta, Wallapop
+    fi: 50, fr: 37, // Huuto, LeBonCoin
+    gb: 50, ge: 50, // Gumtree, MyMarket
+    gr: 50, hr: 50, // Vendora, Njuskalo
+    hu: 50, ie: 50, // Jofogas, DoneDeal
+    is: 50, it: 50, // Bland, Subito
+    kz: 50, lt: 50, // OLX, Skelbiu
+    lv: 50, mk: 50, // SS.lv, Pazar3
+    md: 50, mt: 50, // 999.md, MaltaPark
+    nl: 50, no: 50, // Marktplaats, Finn
+    pl: 50, pt: 50, // OLX, OLX
+    ro: 50, ru: 50, // OLX, Avito
+    rs: 50, se: 50, // Kupujem Prodajem, Tradera
+    si: 50, sk: 50, // Bolha, Bazos
+    tr: 50, ua: 50, // LetGo, OLX
+    xk: 50, // Merrjep
   };
   return itemsPerPage[country] || 50;
 }
@@ -906,6 +1040,16 @@ app.get('/api/vinted/search', async (req, res) => {
   let browser;
   try {
     const { query = 'drone', page = '1', country = 'fr' } = req.query;
+    
+    // Check if Vinted is supported in this country
+    if (!hasVintedSupport(country)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Vinted is not available in ${country}`, 
+        details: 'This country is not supported by Vinted' 
+      });
+    }
+    
     const pageNum = Math.max(1, parseInt(page) || 1);
     const itemsPerPage = getItemsPerPage(country);
 
@@ -1153,6 +1297,16 @@ app.get('/api/ebay/search', async (req, res) => {
 app.get('/api/ebay/browse', async (req, res) => {
   try {
     const { query = 'cabela 2013 wii u', page = '1', country = 'fr' } = req.query;
+    
+    // Check if eBay Browse API is supported in this country
+    if (!hasEbaySupportBrowse(country)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `eBay Browse API is not available in ${country}`, 
+        details: 'Supported countries: GB, DE, US, AU, IT, CA, ES, FR, HK, SG, IE, PL, NL, AT, CH, BE' 
+      });
+    }
+    
     const pageNum = Math.max(1, parseInt(page) || 1);
     const itemsPerPage = getItemsPerPage(country);
     const offset = (pageNum - 1) * itemsPerPage;
