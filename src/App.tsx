@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import EbayCard from './components/EbayCard'
 import LeboncoinCard from './components/LeboncoinCard'
+import { hasEbaySupportBrowse, hasVintedSupport } from '../shared/countrySupport.js'
 
 type Item = {
   title: string | null;
@@ -50,28 +51,6 @@ const getLeboncoinName = (country: string): string => {
 const getVintedLabel = (country: string): string => {
   return `Vinted (${country.toUpperCase()})`;
 };
-
-// eBay Browse API supported countries
-const hasEbaySupportBrowse = (country: string): boolean => {
-  const supportedCountries = {
-    gb: true, de: true, us: true, au: true, it: true, ca: true,
-    es: true, fr: true, hk: true, sg: true, ie: true, pl: true,
-    nl: true, at: true, ch: true, be: true,
-  };
-  return (supportedCountries as { [key: string]: boolean })[country] || false;
-};
-
-// Vinted supported countries
-const hasVintedSupport = (country: string): boolean => {
-  const vintedCountries = {
-    at: true, be: true, cz: true, de: true, dk: true, ee: true,
-    es: true, fi: true, fr: true, gb: true, gr: true, hr: true,
-    hu: true, ie: true, it: true, lt: true, lv: true, nl: true,
-    pl: true, pt: true, ro: true, se: true, si: true, sk: true,
-  };
-  return (vintedCountries as { [key: string]: boolean })[country] || false;
-};
-
 
 function App() {
   const [query, setQuery] = useState('drone');

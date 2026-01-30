@@ -9,6 +9,7 @@ import * as cheerio from 'cheerio';
 import puppeteer from 'puppeteer';
 import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { hasEbaySupportBrowse, hasVintedSupport } from '../shared/countrySupport.js';
 
 // Configure puppeteer-extra with stealth plugin for DataDome bypass
 puppeteerExtra.use(StealthPlugin());
@@ -54,28 +55,6 @@ function getEbaySiteId(country) {
   };
   return siteIds[country] || '71'; // Default to France
 }
-
-// eBay Browse API supported countries
-function hasEbaySupportBrowse(country) {
-  const supportedCountries = {
-    gb: true, de: true, us: true, au: true, it: true, ca: true,
-    es: true, fr: true, hk: true, sg: true, ie: true, pl: true,
-    nl: true, at: true, ch: true, be: true,
-  };
-  return supportedCountries[country] || false;
-}
-
-// Vinted country support check
-function hasVintedSupport(country) {
-  const vintedCountries = {
-    at: true, be: true, cz: true, de: true, dk: true, ee: true,
-    es: true, fi: true, fr: true, gb: true, gr: true, hr: true,
-    hu: true, ie: true, it: true, lt: true, lv: true, nl: true,
-    pl: true, pt: true, ro: true, se: true, si: true, sk: true,
-  };
-  return vintedCountries[country] || false;
-}
-
 
 // Simple in-memory token cache for Browse API
 let browseToken = null;
