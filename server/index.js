@@ -216,7 +216,7 @@ function getItemsPerPage(country) {
     fr: 37,  // LeBonCoin
     de: 50,  // Kleinanzeigen
     be: 50,  // 2ememain.be
-    at: 50,  // Willhaben
+    at: 30,  // Willhaben
     es: 40,  // Wallapop
     nl: 50,  // Marktplaats
     pl: 50,  // OLX
@@ -229,7 +229,7 @@ function getSelector(country) {
     fr: '[data-test-id="ad"]',
     de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
-    at: 'article, [data-testid="ad"], a[href*="/iad/"]',
+    at: 'a[href*="/iad/kaufen-und-verkaufen/d/"], div[id*="search-result-entry"]',
     es: 'a[href*="/item/"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
@@ -254,7 +254,8 @@ function getSearchUrl(country, config, query, pageNum) {
   }
   
   if (country === 'at') {
-    return `https://${config.domain}/iad/kaufen-und-verkaufen/l/seite-${pageNum}?keyword=${encodeURIComponent(query)}`;
+    const searchTerm = encodeURIComponent(String(query).trim());
+    return `https://${config.domain}/iad/kaufen-und-verkaufen/marktplatz?keyword=${searchTerm}&page=${pageNum}`;
   }
   
   if (country === 'es') {
@@ -284,7 +285,7 @@ function getExtractor(country) {
     fr: extractLeBonCoinData,
     de: extractEbayKleinanzeigenData,
     be: extract2ememainData,
-    at: extractLeBonCoinData, // Willhaben - à adapter selon la structure réelle
+    at: extractWillhabenData, // Willhaben
     es: extractWallapopData, // Wallapop
     nl: extract2ememainData, // Marktplaats.nl - même structure que 2ememain.be
     pl: extractOlxData, // OLX.pl
@@ -503,6 +504,76 @@ async function extractOlxData(page_obj) {
   });
 }
 
+// Willhaben (Austria) extractor
+async function extractWillhabenData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    // Willhaben uses multiple container selectors
+    const listingCards = document.querySelectorAll('div[id*="search-result-entry"], article[data-testid*="ad"], a[href*="/iad/kaufen-und-verkaufen/d/"]');
+
+    listingCards.forEach((card) => {
+      try {
+        // URL from link element
+        let linkEl = card;
+        if (card.tagName !== 'A') {
+          linkEl = card.querySelector('a[href*="/iad/kaufen-und-verkaufen/d/"]');
+        }
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.willhaben.at${href}`) : null;
+
+        // Title from h3 element
+        const titleEl = card.querySelector('h3') || (card.tagName === 'A' ? card.querySelector('h3') : null);
+        const title = titleEl?.textContent?.trim();
+
+        // Image
+        let image = card.querySelector('img')?.getAttribute('src');
+        if (!image) {
+          image = card.querySelector('img')?.getAttribute('data-src');
+        }
+
+        // Price from span with data-testid="search-result-entry-price-*" or aria-label
+        let price = null;
+        const priceEl = card.querySelector('[data-testid*="search-result-entry-price"], span[aria-label*="€"]');
+        if (priceEl) {
+          const ariaLabel = priceEl.getAttribute('aria-label');
+          price = ariaLabel || priceEl.textContent.trim();
+        }
+
+        // Date from p element with aria-label containing "veröffentlicht"
+        let date = null;
+        const dateEl = card.querySelector('p[aria-label*="veröffentlicht"]');
+        if (dateEl) {
+          const ariaLabel = dateEl.getAttribute('aria-label');
+          date = ariaLabel ? ariaLabel.replace('veröffentlicht ', '') : dateEl.textContent.trim();
+        }
+
+        // Location from span with aria-label containing "Wird verkauft in"
+        let location = null;
+        const locationEl = card.querySelector('[data-testid*="search-result-entry-subheader"] span, span[aria-label*="Wird verkauft in"]');
+        if (locationEl) {
+          const ariaLabel = locationEl.getAttribute('aria-label');
+          location = ariaLabel ? ariaLabel.replace('Wird verkauft in ', '') : locationEl.textContent.trim();
+        }
+
+        if (title && url) {
+          results.push({ 
+            title, 
+            url, 
+            image, 
+            alt: title, 
+            price: price || 'N/A', 
+            shipping: location || date || null 
+          });
+        }
+      } catch (e) {
+        console.warn('Parse error:', e.message);
+      }
+    });
+
+    return results;
+  });
+}
+
 // Wallapop (Spain) extractor
 function extractWallapopData(page) {
   return page.evaluate(() => {
@@ -597,13 +668,13 @@ app.get('/api/leboncoin/search', async (req, res) => {
       await new Promise(resolve => setTimeout(resolve, 3000));
     }
 
-    // Scroll to load lazy-loaded images (especially for OLX.pl)
-    if (country === 'pl') {
-      console.log('📜 Scrolling to load lazy-loaded images...');
+    // Scroll to load lazy-loaded images (especially for OLX.pl and Willhaben)
+    if (country === 'pl' || country === 'at') {
+      console.log(`📜 Scrolling to load lazy-loaded content for ${config.name}...`);
       await page_obj.evaluate(() => {
         return new Promise((resolve) => {
           let scrolls = 0;
-          const maxScrolls = 10; // Increased scrolls
+          const maxScrolls = 10;
           const scrollInterval = setInterval(() => {
             window.scrollBy(0, window.innerHeight);
             scrolls++;
@@ -613,10 +684,10 @@ app.get('/api/leboncoin/search', async (req, res) => {
               window.scrollTo(0, 0);
               resolve();
             }
-          },325); 
+          }, 325); 
         });
       });
-      await new Promise(resolve => setTimeout(resolve, 3250)); // Increased wait time for images to load
+      await new Promise(resolve => setTimeout(resolve, 3250));
     }
 
     // Load more results for Wallapop (Spain) by clicking "Cargar más" button once, then scrolling
