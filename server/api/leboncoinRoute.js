@@ -10,7 +10,7 @@ import {
   getSelector,
   getSearchUrl,
 } from '../config/scrapingConfig.js';
-import { getExtractor } from '../scrapers/puppeteerUtil.js';
+import { getExtractor } from '../scrapers/extractors.js';
 
 export function setupLeboncoinRoute(app) {
   app.get('/api/leboncoin/search', async (req, res) => {

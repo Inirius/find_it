@@ -52,6 +52,19 @@ export async function extractLeBonCoinData(page_obj) {
   });
 }
 
+export function getExtractor(country) {
+  const extractors = {
+    fr: extractLeBonCoinData,
+    de: extractEbayKleinanzeigenData,
+    be: extract2ememainData,
+    at: extractWillhabenData,
+    es: extractWallapopData,
+    nl: extract2ememainData,
+    pl: extractOlxData,
+  };
+  return extractors[country] || extractors.fr;
+}
+
 export async function extractEbayKleinanzeigenData(page_obj) {
   return await page_obj.evaluate(() => {
     const results = [];
