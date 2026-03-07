@@ -1,0 +1,8 @@
+TODO - API
+
+- Re-enable Gumtree scraping (AU/GB) once a proxy is configured.
+- Required env vars:
+  - GUMTREE_PROXY_SERVER
+  - GUMTREE_PROXY_USERNAME (optional depending on provider)
+  - GUMTREE_PROXY_PASSWORD (optional depending on provider)
+- After proxy setup, remove temporary deactivation block in leboncoinRoute.js for country === 'au' or 'gb'.

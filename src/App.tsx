@@ -361,39 +361,39 @@ function App() {
       )}
       
       <h1 style={{marginBottom: 12}}>Recherche multi-sites</h1>
-      <form
-        onSubmit={handleSearch}
-        style={{display: 'flex', gap: 8, marginBottom: 16}}
-      >
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Tapez votre recherche"
-          style={{flex: 1, padding: '8px 10px'}}
-        />
-        <button type="submit" style={{padding: '8px 12px'}}>Rechercher</button>
-      </form>
+        <form
+          onSubmit={handleSearch}
+          style={{display: 'flex', gap: 8, marginBottom: 16}}
+        >
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Tapez votre recherche"
+            style={{flex: 1, padding: '8px 10px'}}
+          />
+          <button type="submit" style={{padding: '8px 12px'}}>Rechercher</button>
+        </form>
 
-      {loading && <div>Chargement...</div>}
-      {error && <div style={{color: 'red'}}><strong>Erreur:</strong> {error}</div>}
+        {loading && <div>Chargement...</div>}
+        {error && <div style={{color: 'red'}}><strong>Erreur:</strong> {error}</div>}
 
-      {!loading && !error && ebayItems.length === 0 && leboncoinItems.length === 0 && vintedItems.length === 0 && (
+        {!loading && !error && ebayItems.length === 0 && leboncoinItems.length === 0 && vintedItems.length === 0 && (
         <div>Aucun résultat.</div>
       )}
 
       {(() => {
         const visibleColumns = Object.values(sources).filter(Boolean).length;
-        const gridTemplateColumns = visibleColumns === 1 ? '1fr' : visibleColumns === 2 ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))';
-        const maxWidth = visibleColumns === 1 ? '400px' : visibleColumns === 2 ? '800px' : undefined;
+        const gridTemplateColumns = visibleColumns === 1 ? '1fr' : visibleColumns === 2 ? 'repeat(2, minmax(0, 1fr))' : visibleColumns === 3 ? 'repeat(3, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))';
+        const maxWidth = visibleColumns === 1 ? '400px' : visibleColumns === 2 ? '800px' : visibleColumns === 3 ? '1200px' : undefined;
         return (
-          <div style={{position: 'relative', paddingTop: 8}}>
+          <div style={{position: 'relative', paddingTop: 8, width: '100%'}}>
             {/* Voile de chargement */}
             {loading && (
               <div style={{
                 position: 'absolute',
                 top: 0,
-                left: 0,
-                right: 0,
+                left: 'calc(-50vw + 50%)',
+                width: '100vw',
                 bottom: 0,
                 backgroundColor: 'rgba(70, 70, 70, 0.4)',
                 backdropFilter: 'blur(1px)',

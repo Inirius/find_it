@@ -4,7 +4,7 @@ export function getCountryConfig(country) {
   const configs = {
     al: { domain: 'merrjep.al', name: 'Merrjep' },
     am: { domain: 'list.am', name: 'List.am' },
-    au: { domain: 'gumtree.com.au', name: 'Gumtree' },
+    au: { domain: 'www.gumtree.com.au', name: 'Gumtree' },
     at: { domain: 'www.willhaben.at', name: 'Willhaben' },
     ba: { domain: 'olx.ba', name: 'OLX' },
     be: { domain: 'www.2ememain.be', name: '2ememain.be' },
@@ -18,7 +18,7 @@ export function getCountryConfig(country) {
     es: { domain: 'es.wallapop.com', name: 'Wallapop' },
     fi: { domain: 'huuto.net', name: 'Huuto' },
     fr: { domain: 'www.leboncoin.fr', name: 'LeBonCoin' },
-    gb: { domain: 'gumtree.com', name: 'Gumtree' },
+    gb: { domain: 'www.gumtree.com', name: 'Gumtree' },
     ge: { domain: 'mymarket.ge', name: 'MyMarket' },
     gr: { domain: 'vendora.gr', name: 'Vendora' },
     hr: { domain: 'njuskalo.hr', name: 'Njuskalo' },

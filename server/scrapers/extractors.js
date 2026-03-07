@@ -61,6 +61,7 @@ export function getExtractor(country) {
     es: extractWallapopData,
     nl: extract2ememainData,
     pl: extractOlxData,
+    au: extractGumtreeData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -331,6 +332,57 @@ export function extractWallapopData(page) {
         }
       } catch (err) {
         console.error('Error extracting Wallapop item:', err);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractGumtreeData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const adElements = document.querySelectorAll('a[href*="/s-ad/"]');
+
+    adElements.forEach(ad => {
+      try {
+        // Extract title
+        const titleEl = ad.querySelector('.user-ad-row-new-design__title-span') || ad.querySelector('[class*="title"]');
+        const title = titleEl
+          ? titleEl.textContent.trim()
+          : (ad.getAttribute('aria-label')?.split('Price:')?.[0]?.trim() || null);
+
+        // Extract URL (href is relative, need to prepend base URL)
+        const relativeUrl = ad.getAttribute('href');
+        const url = relativeUrl
+          ? (relativeUrl.startsWith('http') ? relativeUrl : `https://www.gumtree.com.au${relativeUrl}`)
+          : null;
+
+        // Extract image
+        const imgEl = ad.querySelector('.user-ad-image__thumbnail');
+        const image = imgEl ? (imgEl.getAttribute('src') || imgEl.getAttribute('data-src')) : null;
+
+        // Extract price
+        const priceEl = ad.querySelector('.user-ad-price-new-design__price');
+        const price = priceEl ? priceEl.textContent.trim() : null;
+
+        // Extract location
+        const locationEl = ad.querySelector('.user-ad-row-new-design__location');
+        const location = locationEl ? locationEl.textContent.trim() : null;
+
+        // Only add if we have at least title and url
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping: location || null
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Gumtree ad data:', err.message);
       }
     });
 

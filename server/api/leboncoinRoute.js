@@ -1,6 +1,7 @@
 // LeBonCoin scraping API route
 
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import {
   getCountryConfig,
   getSourceName,
@@ -12,6 +13,8 @@ import {
 } from '../config/scrapingConfig.js';
 import { getExtractor } from '../scrapers/extractors.js';
 
+puppeteer.use(StealthPlugin());
+
 export function setupLeboncoinRoute(app) {
   app.get('/api/leboncoin/search', async (req, res) => {
     let browser;
@@ -19,19 +22,43 @@ export function setupLeboncoinRoute(app) {
       const { query = 'drone', page = '1', country = 'fr' } = req.query;
       const pageNum = Math.max(1, parseInt(page) || 1);
 
+      // Temporary deactivation: Gumtree (AU/GB) requires proxy setup to avoid access denied
+      if (country === 'au' || country === 'gb') {
+        return res.status(503).json({
+          success: false,
+          error: 'Gumtree temporairement désactivé (proxy requis).',
+          details: 'Configure a proxy before re-enabling Gumtree scraping.',
+          source: 'Gumtree',
+          country,
+          page: pageNum,
+          items: [],
+          count: 0,
+        });
+      }
+
       const config = getCountryConfig(country);
       const searchUrl = getSearchUrl(country, config, query, pageNum);
+      const gumtreeProxyServer = process.env.GUMTREE_PROXY_SERVER || '';
+      const gumtreeProxyUsername = process.env.GUMTREE_PROXY_USERNAME || '';
+      const gumtreeProxyPassword = process.env.GUMTREE_PROXY_PASSWORD || '';
 
       console.log(`🤖 Scraping ${config.name} with Puppeteer for: "${query}" (country: ${country}, page ${pageNum})`);
 
+      const launchArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
+      ];
+
+      if (country === 'au' && gumtreeProxyServer) {
+        launchArgs.push(`--proxy-server=${gumtreeProxyServer}`);
+        console.log('🪵 [GUMTREE] Proxy enabled for scraping.');
+      }
+
       browser = await puppeteer.launch({
         headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-blink-features=AutomationControlled',
-        ],
+        args: launchArgs,
       });
 
       const page_obj = await browser.newPage();
@@ -39,6 +66,29 @@ export function setupLeboncoinRoute(app) {
       // Set realistic viewport and user agent
       await page_obj.setViewport({ width: 1920, height: 1080 });
       await page_obj.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page_obj.setExtraHTTPHeaders({
+        'accept-language': 'en-AU,en;q=0.9,fr;q=0.8',
+        'upgrade-insecure-requests': '1',
+      });
+
+      if (country === 'au') {
+        await page_obj.setJavaScriptEnabled(true);
+
+        if (gumtreeProxyServer && gumtreeProxyUsername && gumtreeProxyPassword) {
+          await page_obj.authenticate({
+            username: gumtreeProxyUsername,
+            password: gumtreeProxyPassword,
+          });
+        }
+
+        // Warm-up navigation to reduce immediate anti-bot suspension on direct search landing
+        try {
+          await page_obj.goto('https://www.gumtree.com.au/', { waitUntil: 'domcontentloaded', timeout: 45000 });
+          await new Promise(resolve => setTimeout(resolve, 1800));
+        } catch (warmupErr) {
+          console.warn('Gumtree warm-up navigation failed:', warmupErr.message);
+        }
+      }
 
       // Navigate with higher timeout (Kleinanzeigen can be slow) and fall back to domcontentloaded
       try {
@@ -48,13 +98,71 @@ export function setupLeboncoinRoute(app) {
         await page_obj.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       }
 
+      if (country === 'au') {
+        const navDebug = await page_obj.evaluate(() => ({
+          href: window.location.href,
+          title: document.title,
+          readyState: document.readyState,
+          hasCaptchaWord: document.body?.innerText?.toLowerCase?.().includes('captcha') || false,
+          hasRobotWord: document.body?.innerText?.toLowerCase?.().includes('robot') || false,
+          hasBlockedWord: document.body?.innerText?.toLowerCase?.().includes('blocked') || false,
+          hasAccessDeniedWord: document.body?.innerText?.toLowerCase?.().includes('access denied') || false,
+        }));
+        console.log('🪵 [GUMTREE] Navigation debug:', navDebug);
+
+        const normalizedTitle = (navDebug.title || '').toLowerCase();
+        if (
+          normalizedTitle.includes('temporarily suspended') ||
+          normalizedTitle.includes('access denied') ||
+          navDebug.hasAccessDeniedWord
+        ) {
+          throw new Error('Gumtree blocked this request (access denied / temporarily suspended). Use a different IP or configure GUMTREE_PROXY_SERVER.');
+        }
+      }
+
       // Wait for ads/listings to load (different selectors FR vs DE vs BE)
       const selector = getSelector(country);
+
+      if (country === 'au') {
+        console.log('🪵 [GUMTREE] Waiting for selector:', selector);
+      }
 
       try {
         await page_obj.waitForSelector(selector, { timeout: 25000 });
       } catch (waitErr) {
         console.warn('Selector wait timed out, waiting extra 3s before proceeding:', waitErr.message);
+
+        if (country === 'au') {
+          const selectorDebug = await page_obj.evaluate(() => {
+            const selectors = [
+              'a[href*="/s-ad/"]',
+              'a.user-ad-row-new-design',
+              '.user-ad-row-new-design__title-span',
+              '.user-ad-row-new-design',
+            ];
+
+            const counts = {};
+            selectors.forEach((s) => {
+              counts[s] = document.querySelectorAll(s).length;
+            });
+
+            const bodyText = (document.body?.innerText || '').toLowerCase();
+            return {
+              href: window.location.href,
+              title: document.title,
+              readyState: document.readyState,
+              counts,
+              bodyLength: document.body?.innerText?.length || 0,
+              hasCaptchaWord: bodyText.includes('captcha'),
+              hasRobotWord: bodyText.includes('robot'),
+              hasBlockedWord: bodyText.includes('blocked'),
+              hasVerifyWord: bodyText.includes('verify'),
+              hasAccessDeniedWord: bodyText.includes('access denied'),
+            };
+          });
+          console.log('🪵 [GUMTREE] Selector timeout debug:', selectorDebug);
+        }
+
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
 
@@ -181,7 +289,24 @@ export function setupLeboncoinRoute(app) {
 
       // Extract data from the page
       const extractor = getExtractor(country);
+
+      if (country === 'au') {
+        const preExtractCount = await page_obj.evaluate(() => document.querySelectorAll('a[href*="/s-ad/"]').length);
+        console.log('🪵 [GUMTREE] Pre-extract ad link count:', preExtractCount);
+      }
+
       let pageData = await extractor(page_obj);
+
+      if (country === 'au') {
+        console.log('🪵 [GUMTREE] Extracted item count:', pageData.length);
+        if (pageData.length > 0) {
+          console.log('🪵 [GUMTREE] First extracted item preview:', {
+            title: pageData[0]?.title,
+            url: pageData[0]?.url,
+            price: pageData[0]?.price,
+          });
+        }
+      }
 
       // For Wallapop (Spain), slice results to only return the current page
       let items = pageData;

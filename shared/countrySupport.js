@@ -46,10 +46,19 @@ export const VINTED_SUPPORTED_COUNTRIES = {
   sk: true,
 };
 
+export const GUMTREE_SUPPORTED_COUNTRIES = {
+  au: true,
+  gb: true,
+};
+
 export function hasEbaySupportBrowse(country) {
   return EBAY_BROWSE_SUPPORTED_COUNTRIES[country] || false;
 }
 
 export function hasVintedSupport(country) {
   return VINTED_SUPPORTED_COUNTRIES[country] || false;
+}
+
+export function hasGumtreeSupport(country) {
+  return GUMTREE_SUPPORTED_COUNTRIES[country] || false;
 }

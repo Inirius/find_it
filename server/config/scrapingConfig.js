@@ -32,6 +32,7 @@ export function getItemsPerPage(country) {
 
 export function getSelector(country) {
   const selectors = {
+    au: 'a[href*="/s-ad/"], a.user-ad-row-new-design, .user-ad-row-new-design__title-span',
     fr: '[data-test-id="ad"]',
     de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
@@ -59,6 +60,13 @@ const normalize = {
 
 // Country-specific search URL builders
 const searchUrlByCountry = {
+  au: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return page > 1
+      ? `https://${domain}/s-${term}/page-${page}/k0`
+      : `https://${domain}/s-${term}/k0`;
+  },
+
   de: ({ domain, query, page }) => {
     const slug = normalize.slug(query, 'anzeigen');
     return `https://${domain}/s-seite:${page}/${slug}/k0`;
