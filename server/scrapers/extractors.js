@@ -64,6 +64,7 @@ export function getExtractor(country) {
     nl: extract2ememainData,
     pl: extractOlxData,
     au: extractGumtreeData,
+    by: extractKufarData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -487,6 +488,57 @@ export async function extractGumtreeData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Gumtree ad data:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractKufarData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const adLinks = document.querySelectorAll('section > a[data-testid="kufar-ad"]');
+
+    adLinks.forEach((linkEl) => {
+      try {
+        // URL from the link href
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.kufar.by${href}`) : null;
+
+        // Title from h3.styles_title__F3uIe
+        const titleEl = linkEl.querySelector('h3.styles_title__F3uIe');
+        const title = titleEl?.textContent?.trim();
+
+        // Price from p.styles_price__aVxZc > span
+        let price = null;
+        const priceEl = linkEl.querySelector('p.styles_price__aVxZc span');
+        if (priceEl?.textContent) {
+          price = priceEl.textContent.trim();
+        }
+
+        // Image from img.styles_image__ZPJzx
+        let image = linkEl.querySelector('img.styles_image__ZPJzx')?.getAttribute('src');
+
+        // Location from p.styles_region__qCRbf
+        let location = null;
+        const locationEl = linkEl.querySelector('p.styles_region__qCRbf');
+        if (locationEl?.textContent) {
+          location = locationEl.textContent.trim();
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping: location || null
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Kufar ad data:', err.message);
       }
     });
 

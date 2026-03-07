@@ -35,6 +35,7 @@ export function getSelector(country) {
     au: 'a[href*="/s-ad/"], a.user-ad-row-new-design, .user-ad-row-new-design__title-span',
     ba: 'div.cardd a[href*="/artikal/"], a[href*="/artikal/"]',
     bg: 'div[data-cy="l-card"], a[href*="/d/ad/"]',
+    by: 'section > a[data-testid="kufar-ad"]',
     fr: '[data-test-id="ad"]',
     de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
@@ -77,6 +78,24 @@ const searchUrlByCountry = {
   bg: ({ query, page }) => {
     const term = normalize.dash(query);
     return `https://www.olx.bg/ads/q-${term}/?page=${page}`;
+  },
+
+  by: ({ query, page }) => {
+    const term = normalize.dash(query);
+    // Kufar uses cursor-based pagination with predictable structure
+    if (page > 1) {
+      // Cursor format: {"t":"abs","f":true,"p":<page>,"pit":"29548706"}
+      // We generate it dynamically for each page
+      const cursorObj = JSON.stringify({
+        t: "abs",
+        f: true,
+        p: page,
+        pit: "29548706"
+      });
+      const cursor = Buffer.from(cursorObj).toString('base64');
+      return `https://www.kufar.by/l/igry-i-pristavki?cursor=${encodeURIComponent(cursor)}&ot=1&page=${page}&query=${term}&rgn=all&sort=lst.d`;
+    }
+    return `https://www.kufar.by/l/igry-i-pristavki?query=${term}&ot=1&rgn=all&sort=lst.d`;
   },
 
   de: ({ domain, query, page }) => {
