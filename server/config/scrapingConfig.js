@@ -36,6 +36,7 @@ export function getSelector(country) {
     ba: 'div.cardd a[href*="/artikal/"], a[href*="/artikal/"]',
     bg: 'div[data-cy="l-card"], a[href*="/d/ad/"]',
     by: 'section > a[data-testid="kufar-ad"]',
+    cy: 'div.grid-items-col a.card-product, a.card.vCard.card-product',
     fr: '[data-test-id="ad"]',
     de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
@@ -96,6 +97,11 @@ const searchUrlByCountry = {
       return `https://www.kufar.by/l/igry-i-pristavki?cursor=${encodeURIComponent(cursor)}&ot=1&page=${page}&query=${term}&rgn=all&sort=lst.d`;
     }
     return `https://www.kufar.by/l/igry-i-pristavki?query=${term}&ot=1&rgn=all&sort=lst.d`;
+  },
+
+  cy: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/items?q=${term}&page=${page}`;
   },
 
   de: ({ domain, query, page }) => {

@@ -58,6 +58,7 @@ export function getExtractor(country) {
     de: extractEbayKleinanzeigenData,
     ba: extractOlxBaData,
     bg: extractOlxBgData,
+    cy: extractVendoraData,
     be: extract2ememainData,
     at: extractWillhabenData,
     es: extractWallapopData,
@@ -437,6 +438,55 @@ export function extractWallapopData(page) {
         }
       } catch (err) {
         console.error('Error extracting Wallapop item:', err);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractVendoraData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div.grid-items-col a.card-product, a.card.vCard.card-product');
+
+    cards.forEach((card) => {
+      try {
+        const href = card.getAttribute('href');
+        const url = href
+          ? (href.startsWith('http') ? href : `https://vendora.cy${href}`)
+          : null;
+
+        const titleEl = card.querySelector('p.title .body-m, p.title span.body-m, p.title, .title');
+        const title = titleEl?.textContent?.trim() || null;
+
+        let image = card.querySelector('.card-img img')?.getAttribute('src') || null;
+        if (!image) {
+          const sourceEl = card.querySelector('.card-img source[srcset], source[srcset]');
+          if (sourceEl) {
+            const srcset = sourceEl.getAttribute('srcset');
+            image = srcset?.split(',')[0]?.trim()?.split(' ')[0] || null;
+          }
+        }
+
+        let price = null;
+        const priceEl = card.querySelector('p.subtitle .label-l, .subtitle .label-l, .subtitle');
+        if (priceEl?.textContent) {
+          price = priceEl.textContent.replace(/\s+/g, ' ').trim();
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping: null,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Vendora ad data:', err.message);
       }
     });
 
