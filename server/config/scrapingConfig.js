@@ -7,7 +7,7 @@ export function getItemsPerPage(country) {
     al: 50, de: 50, // Merrjep, Kleinanzeigen
     am: 50, at: 30, // List.am, Willhaben
     au: 50, ba: 50, // Gumtree, OLX
-    be: 50, bg: 50, // 2ememain.be, OLX
+    be: 50, bg: 42, // 2ememain.be, OLX
     by: 50, cy: 50, // Kufar, Vendora
     cz: 50, dk: 50, // Sbazar, DBA
     ee: 50, es: 40, // Osta, Wallapop
@@ -33,6 +33,8 @@ export function getItemsPerPage(country) {
 export function getSelector(country) {
   const selectors = {
     au: 'a[href*="/s-ad/"], a.user-ad-row-new-design, .user-ad-row-new-design__title-span',
+    ba: 'div.cardd a[href*="/artikal/"], a[href*="/artikal/"]',
+    bg: 'div[data-cy="l-card"], a[href*="/d/ad/"]',
     fr: '[data-test-id="ad"]',
     de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
@@ -65,6 +67,16 @@ const searchUrlByCountry = {
     return page > 1
       ? `https://${domain}/s-${term}/page-${page}/k0`
       : `https://${domain}/s-${term}/k0`;
+  },
+
+  ba: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/pretraga?attr=&attr_encoded=1&q=${term}&page=${page}`;
+  },
+
+  bg: ({ query, page }) => {
+    const term = normalize.dash(query);
+    return `https://www.olx.bg/ads/q-${term}/?page=${page}`;
   },
 
   de: ({ domain, query, page }) => {

@@ -166,13 +166,13 @@ export function setupLeboncoinRoute(app) {
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
 
-      // Scroll to load lazy-loaded images (especially for OLX.pl and Willhaben)
-      if (country === 'pl' || country === 'at') {
+      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg and Willhaben)
+      if (country === 'pl' || country === 'at' || country === 'bg') {
         console.log(`📜 Scrolling to load lazy-loaded content for ${config.name}...`);
         await page_obj.evaluate(() => {
           return new Promise((resolve) => {
             let scrolls = 0;
-            const maxScrolls = 10;
+            const maxScrolls = 14;
             const scrollInterval = setInterval(() => {
               window.scrollBy(0, window.innerHeight);
               scrolls++;
@@ -185,7 +185,9 @@ export function setupLeboncoinRoute(app) {
             }, 325); 
           });
         });
-        await new Promise(resolve => setTimeout(resolve, 3250));
+
+        // Give browser more time for images/srcset to populate after scrolling
+        await new Promise(resolve => setTimeout(resolve, country === 'bg' ? 5200 : 3250));
       }
 
       // Load more results for Wallapop (Spain) by clicking "Cargar más" button once, then scrolling

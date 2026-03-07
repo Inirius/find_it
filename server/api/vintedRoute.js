@@ -136,42 +136,88 @@ export function setupVintedRoutes(app) {
       const currency = getCurrency(country);
       const pageData = await page_obj.evaluate((currencyInfo) => {
         const results = [];
+        const seenUrls = new Set();
         const links = document.querySelectorAll('a[href*="/items/"]');
+
+        const cleanText = (value) => (value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+
+        const extractGenericPrice = (text) => {
+          const normalized = cleanText(text);
+          if (!normalized) return null;
+
+          const matches = normalized.match(/(?:€\s*\d+[.,]\d{2}|\d+[.,]\d{2}\s*€|\d+[.,]\d{2}\s*(?:лв\.?|лв|lei|zł|Ft|kr|£|₺|₴|KM|дин))/gi);
+          if (!matches || matches.length === 0) return null;
+
+          // Prefer total price (often second value: item price + buyer protection)
+          return cleanText(matches.length > 1 ? matches[1] : matches[0]);
+        };
         
         links.forEach((link) => {
           try {
             const url = link.getAttribute('href');
             const titleAttr = link.getAttribute('title');
-            
-            if (!url || !titleAttr) return;
+            if (!url) return;
+
+            if (seenUrls.has(url)) return;
+            seenUrls.add(url);
+
+            const card =
+              link.closest('[data-testid="grid-item"]') ||
+              link.closest('article') ||
+              link.parentElement;
 
             // Extract title from the title attribute (before first comma)
-            let title = titleAttr.split(',')[0]?.trim();
+            let title = null;
+            const titleEl = card?.querySelector('[data-testid$="--description-title"]') || card?.querySelector('h3') || card?.querySelector('h2');
+            if (titleEl?.textContent) {
+              title = cleanText(titleEl.textContent);
+            }
+            if (!title && titleAttr) {
+              title = cleanText(titleAttr.split(',')[0]);
+            }
             
             // Extract state/condition from title attribute (like price extraction)
             let shipping = null;
-            const stateMatch = titleAttr.match(/état:\s*([^,]+)/);
-            if (stateMatch) {
-              shipping = stateMatch[1].trim();
+            const subtitleEl = card?.querySelector('[data-testid$="--description-subtitle"]');
+            if (subtitleEl?.textContent) {
+              shipping = cleanText(subtitleEl.textContent);
+            }
+            if (!shipping && titleAttr) {
+              const stateMatch = titleAttr.match(/(?:état|състояние|condition):\s*([^,]+)/i);
+              if (stateMatch) {
+                shipping = cleanText(stateMatch[1]);
+              }
             }
             
-            // Extract price from title attribute - get ALL prices and take the second (with fees)
+            // Extract price from structured fields first
             let price = null;
-            const priceRegex = new RegExp(currencyInfo.pattern, 'g');
-            const priceMatches = titleAttr.match(priceRegex);
-            if (priceMatches && priceMatches.length > 1) {
-              // Second price (with fees like Protection acheteurs)
-              price = priceMatches[1].trim();
-            } else if (priceMatches && priceMatches.length === 1) {
-              // Fallback to first price if only one exists
-              price = priceMatches[0].trim();
+            const totalCombinedPriceEl = card?.querySelector('[data-testid="total-combined-price"]');
+            const basePriceEl = card?.querySelector('[data-testid$="--price-text"]');
+
+            if (totalCombinedPriceEl?.textContent) {
+              price = cleanText(totalCombinedPriceEl.textContent);
+            } else if (basePriceEl?.textContent) {
+              price = cleanText(basePriceEl.textContent);
+            }
+
+            // Fallback: regex on title attr (currency-specific then generic)
+            if (!price && titleAttr) {
+              const priceRegex = new RegExp(currencyInfo.pattern, 'g');
+              const priceMatches = titleAttr.match(priceRegex);
+              if (priceMatches && priceMatches.length > 1) {
+                price = cleanText(priceMatches[1]);
+              } else if (priceMatches && priceMatches.length === 1) {
+                price = cleanText(priceMatches[0]);
+              } else {
+                price = extractGenericPrice(titleAttr);
+              }
             }
 
             // Find image - look in multiple places (boosted vs non-boosted items may have different structures)
             let image = null;
             
             // First try: image directly in the link
-            let img = link.querySelector('img');
+            let img = card?.querySelector('img[data-testid$="--image--img"]') || link.querySelector('img');
             
             // Second try: image in parent article
             if (!img) {

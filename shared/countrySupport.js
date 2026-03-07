@@ -22,6 +22,7 @@ export const EBAY_BROWSE_SUPPORTED_COUNTRIES = {
 export const VINTED_SUPPORTED_COUNTRIES = {
   at: true,
   be: true,
+  bg: true,
   cz: true,
   de: true,
   dk: true,

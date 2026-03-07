@@ -56,6 +56,8 @@ export function getExtractor(country) {
   const extractors = {
     fr: extractLeBonCoinData,
     de: extractEbayKleinanzeigenData,
+    ba: extractOlxBaData,
+    bg: extractOlxBgData,
     be: extract2ememainData,
     at: extractWillhabenData,
     es: extractWallapopData,
@@ -217,6 +219,108 @@ export async function extractOlxData(page_obj) {
         }
       } catch (e) {
         console.warn('Parse error:', e.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractOlxBgData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const listingCards = document.querySelectorAll('div[data-cy="l-card"], div[data-testid="l-card"]');
+
+    const pickBestFromSrcset = (srcset) => {
+      if (!srcset) return null;
+      const candidates = srcset
+        .split(',')
+        .map((entry) => entry.trim().split(' ')[0])
+        .filter(Boolean);
+      return candidates.length ? candidates[candidates.length - 1] : null;
+    };
+
+    listingCards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a[href*="/d/ad/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.olx.bg${href}`) : null;
+
+        const titleEl = card.querySelector('[data-testid="ad-card-title"] h4') || card.querySelector('h4');
+        const title = titleEl?.textContent?.trim() || null;
+
+        const imgEl = card.querySelector('img');
+        let image =
+          pickBestFromSrcset(imgEl?.getAttribute('srcset')) ||
+          pickBestFromSrcset(imgEl?.getAttribute('data-srcset')) ||
+          imgEl?.getAttribute('src') ||
+          imgEl?.getAttribute('data-src') ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('[data-testid="ad-price"]');
+        if (priceEl?.textContent) {
+          const priceText = priceEl.textContent.replace(/\s+/g, ' ').trim();
+          const match = priceText.match(/([\d\s.,]+\s*лв\.?)(?:\s*\/\s*[\d\s.,]+\s*€)?/i);
+          price = match ? match[1].trim() : priceText;
+        }
+
+        let shipping = null;
+        const locationDateEl = card.querySelector('[data-testid="location-date"]');
+        if (locationDateEl?.textContent) {
+          shipping = locationDateEl.textContent.replace(/\s+/g, ' ').trim();
+        }
+
+        if (title && url) {
+          results.push({ title, url, image, alt: title, price, shipping });
+        }
+      } catch (e) {
+        console.warn('Parse error (OLX.bg):', e.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractOlxBaData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const listingCards = document.querySelectorAll('div.cardd, div[class*="cardd"]');
+
+    listingCards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a[href*="/artikal/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://olx.ba${href}`) : null;
+
+        const titleEl = card.querySelector('h1.main-heading') || card.querySelector('h1') || card.querySelector('[class*="heading"]');
+        const title = titleEl?.textContent?.trim() || null;
+
+        let image = card.querySelector('.case-slider__image img')?.getAttribute('src') || card.querySelector('img')?.getAttribute('src') || null;
+        if (!image) {
+          image = card.querySelector('img')?.getAttribute('data-src') || null;
+        }
+
+        let price = null;
+        const priceEl = card.querySelector('.price-wrap .smaller') || card.querySelector('[class*="price"] .smaller') || card.querySelector('[class*="price"]');
+        if (priceEl?.textContent) {
+          const text = priceEl.textContent.replace(/\s+/g, ' ').trim();
+          const match = text.match(/([\d\s.,]+\s*KM)/i);
+          price = match ? match[1].trim() : text;
+        }
+
+        let shipping = null;
+        const timeEl = card.querySelector('.price-wrap .text-xs') || card.querySelector('.text-xs');
+        if (timeEl?.textContent) {
+          shipping = timeEl.textContent.replace(/\s+/g, ' ').trim();
+        }
+
+        if (title && url) {
+          results.push({ title, url, image, alt: title, price, shipping });
+        }
+      } catch (e) {
+        console.warn('Parse error (OLX.ba):', e.message);
       }
     });
 
