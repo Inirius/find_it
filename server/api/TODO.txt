@@ -6,3 +6,10 @@ TODO - API
   - GUMTREE_PROXY_USERNAME (optional depending on provider)
   - GUMTREE_PROXY_PASSWORD (optional depending on provider)
 - After proxy setup, remove temporary deactivation block in leboncoinRoute.js for country === 'au' or 'gb'.
+
+- Re-enable Sbazar scraping (CZ) once a proxy/network that can load Seznam CMP is configured.
+- Required env vars:
+  - SBAZAR_PROXY_SERVER
+  - SBAZAR_PROXY_USERNAME (optional depending on provider)
+  - SBAZAR_PROXY_PASSWORD (optional depending on provider)
+- After proxy setup, remove temporary deactivation block in leboncoinRoute.js for country === 'cz'.

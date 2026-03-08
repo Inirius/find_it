@@ -37,6 +37,7 @@ export function getSelector(country) {
     bg: 'div[data-cy="l-card"], a[href*="/d/ad/"]',
     by: 'section > a[data-testid="kufar-ad"]',
     cy: 'div.grid-items-col a.card-product, a.card.vCard.card-product',
+    cz: 'li[data-offer-id]',
     fr: '[data-test-id="ad"]',
     de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
@@ -102,6 +103,11 @@ const searchUrlByCountry = {
   cy: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/items?q=${term}&page=${page}`;
+  },
+
+  cz: ({ domain, query, page }) => {
+    const term = normalize.encoded(query);
+    return `https://${domain}/hledej/${term}/${page}`;
   },
 
   de: ({ domain, query, page }) => {

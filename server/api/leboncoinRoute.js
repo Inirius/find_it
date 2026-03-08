@@ -22,13 +22,18 @@ export function setupLeboncoinRoute(app) {
       const { query = 'drone', page = '1', country = 'fr' } = req.query;
       const pageNum = Math.max(1, parseInt(page) || 1);
 
-      // Temporary deactivation: Gumtree (AU/GB) requires proxy setup to avoid access denied
-      if (country === 'au' || country === 'gb') {
+      // Temporary deactivation: Gumtree (AU/GB) and Sbazar (CZ) require proxy setup
+      if (country === 'au' || country === 'gb' || country === 'cz') {
+        const isGumtree = country === 'au' || country === 'gb';
         return res.status(503).json({
           success: false,
-          error: 'Gumtree temporairement désactivé (proxy requis).',
-          details: 'Configure a proxy before re-enabling Gumtree scraping.',
-          source: 'Gumtree',
+          error: isGumtree
+            ? 'Gumtree temporairement désactivé (proxy requis).'
+            : 'Sbazar temporairement désactivé (proxy requis).',
+          details: isGumtree
+            ? 'Configure a proxy before re-enabling Gumtree scraping.'
+            : 'Configure a proxy before re-enabling Sbazar scraping.',
+          source: isGumtree ? 'Gumtree' : 'Sbazar',
           country,
           page: pageNum,
           items: [],
@@ -98,6 +103,8 @@ export function setupLeboncoinRoute(app) {
         await page_obj.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       }
 
+      // Note: Sbazar (CZ) is temporarily deactivated above.
+
       if (country === 'au') {
         const navDebug = await page_obj.evaluate(() => ({
           href: window.location.href,
@@ -124,7 +131,8 @@ export function setupLeboncoinRoute(app) {
       const selector = getSelector(country);
 
       if (country === 'au') {
-        console.log('🪵 [GUMTREE] Waiting for selector:', selector);
+        console.log(`🪵 [${config.name.toUpperCase()}] Waiting for selector:`, selector);
+        console.log(`🪵 [${config.name.toUpperCase()}] Search URL:`, searchUrl);
       }
 
       try {
@@ -293,16 +301,16 @@ export function setupLeboncoinRoute(app) {
       const extractor = getExtractor(country);
 
       if (country === 'au') {
-        const preExtractCount = await page_obj.evaluate(() => document.querySelectorAll('a[href*="/s-ad/"]').length);
-        console.log('🪵 [GUMTREE] Pre-extract ad link count:', preExtractCount);
+        const preExtractCount = await page_obj.evaluate((sel) => document.querySelectorAll(sel).length, selector);
+        console.log(`🪵 [${config.name.toUpperCase()}] Pre-extract element count (${selector}):`, preExtractCount);
       }
 
       let pageData = await extractor(page_obj);
 
       if (country === 'au') {
-        console.log('🪵 [GUMTREE] Extracted item count:', pageData.length);
+        console.log(`🪵 [${config.name.toUpperCase()}] Extracted item count:`, pageData.length);
         if (pageData.length > 0) {
-          console.log('🪵 [GUMTREE] First extracted item preview:', {
+          console.log(`🪵 [${config.name.toUpperCase()}] First extracted item preview:`, {
             title: pageData[0]?.title,
             url: pageData[0]?.url,
             price: pageData[0]?.price,

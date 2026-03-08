@@ -55,6 +55,7 @@ export async function extractLeBonCoinData(page_obj) {
 export function getExtractor(country) {
   const extractors = {
     fr: extractLeBonCoinData,
+    cz: extractSbazarData,
     de: extractEbayKleinanzeigenData,
     ba: extractOlxBaData,
     bg: extractOlxBgData,
@@ -116,6 +117,63 @@ export async function extractEbayKleinanzeigenData(page_obj) {
         }
       } catch (e) {
         console.warn('Parse error:', e.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractSbazarData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const listingCards = document.querySelectorAll('li[data-offer-id]');
+
+    listingCards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a[href*="/inzerat/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.sbazar.cz${href}`) : null;
+
+        const titleEl =
+          card.querySelector('div.text-red.line-clamp-2') ||
+          card.querySelector('[class*="text-red"][class*="line-clamp-2"]') ||
+          card.querySelector('img[alt]');
+        const title =
+          (titleEl?.tagName?.toLowerCase?.() === 'img'
+            ? titleEl.getAttribute('alt')
+            : titleEl?.textContent)?.trim() || null;
+
+        const imgEl = card.querySelector('img');
+        let image = imgEl?.getAttribute('src') || null;
+        if (image && image.startsWith('//')) {
+          image = `https:${image}`;
+        }
+
+        let price = null;
+        const priceEl = card.querySelector('b');
+        if (priceEl?.textContent) {
+          price = priceEl.textContent.replace(/\s+/g, ' ').trim();
+        }
+
+        let shipping = null;
+        const locationEl = card.querySelector('span.whitespace-pre') || card.querySelector('span[class*="truncate"]');
+        if (locationEl?.textContent) {
+          shipping = locationEl.textContent.replace(/\s+/g, ' ').trim();
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (e) {
+        console.warn('Sbazar parse error:', e.message);
       }
     });
 
