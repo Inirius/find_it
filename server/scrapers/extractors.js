@@ -56,6 +56,7 @@ export function getExtractor(country) {
   const extractors = {
     fr: extractLeBonCoinData,
     cz: extractSbazarData,
+    dk: extractDbaData,
     de: extractEbayKleinanzeigenData,
     ba: extractOlxBaData,
     bg: extractOlxBgData,
@@ -450,6 +451,69 @@ export async function extractWillhabenData(page_obj) {
         }
       } catch (e) {
         console.warn('Parse error:', e.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractDbaData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('article.sf-search-ad, article[class*="sf-search-ad"]');
+
+    cards.forEach((card) => {
+      try {
+        const linkEl =
+          card.querySelector('a.sf-search-ad-link[href*="/recommerce/forsale/item/"]') ||
+          card.querySelector('h2 a[href*="/recommerce/forsale/item/"]') ||
+          card.querySelector('a[href*="/recommerce/forsale/item/"]');
+
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.dba.dk${href}`) : null;
+
+        const titleEl = card.querySelector('h2') || card.querySelector('[id^="search-ad-"]');
+        const title = titleEl?.textContent?.replace(/\s+/g, ' ').trim() || null;
+
+        let image = card.querySelector('img')?.getAttribute('src') || null;
+        if (!image) {
+          const srcset = card.querySelector('img')?.getAttribute('srcset');
+          if (srcset) {
+            const candidates = srcset
+              .split(',')
+              .map((entry) => entry.trim().split(' ')[0])
+              .filter(Boolean);
+            image = candidates.length ? candidates[candidates.length - 1] : null;
+          }
+        }
+
+        let price = null;
+        const priceEl = card.querySelector('span');
+        if (priceEl?.textContent) {
+          const priceText = priceEl.textContent.replace(/\s+/g, ' ').trim();
+          const match = priceText.match(/([\d\s.,]+\s*kr\.?)/i);
+          if (match) price = match[1].trim();
+        }
+
+        const locationEl = card.querySelector('div.text-xs span:first-child');
+        const dateEl = card.querySelector('div.text-xs span:last-child');
+        const location = locationEl?.textContent?.replace(/\s+/g, ' ').trim() || null;
+        const date = dateEl?.textContent?.replace(/\s+/g, ' ').trim() || null;
+        const shipping = [location, date].filter(Boolean).join(' • ') || null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (e) {
+        console.warn('Parse error (DBA.dk):', e.message);
       }
     });
 
