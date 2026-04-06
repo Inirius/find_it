@@ -71,6 +71,7 @@ export function getExtractor(country) {
     by: extractKufarData,
     ee: extractOstaData,
     fi: extractHuutoData,
+    ge: extractMyMarketData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -896,6 +897,54 @@ export async function extractHuutoData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Huuto item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractMyMarketData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const links = document.querySelectorAll('a[href*="/pr/"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    links.forEach((linkEl) => {
+      try {
+        const card =
+          linkEl.querySelector('article[data-testid="product-card"]') ||
+          linkEl.closest('article[data-testid="product-card"]') ||
+          linkEl;
+
+        const href = linkEl.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://mymarket.ge${href}`) : null;
+
+        const titleEl = card.querySelector('[data-testid="productcard-title"]');
+        const title = cleanText(titleEl?.textContent) || null;
+
+        const imageEl = card.querySelector('img');
+        const image = imageEl?.getAttribute('src') || imageEl?.getAttribute('data-src') || null;
+
+        const priceEl = card.querySelector('[data-testid="productcard-price"]');
+        const price = priceEl?.textContent ? cleanText(priceEl.textContent) : null;
+
+        const sellerEl = card.querySelector('[data-testid="seller-name"]');
+        const shipping = sellerEl?.textContent ? cleanText(sellerEl.textContent) : null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting MyMarket item:', err.message);
       }
     });
 

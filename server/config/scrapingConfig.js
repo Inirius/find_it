@@ -47,6 +47,7 @@ export function getSelector(country) {
     ee: 'li.col-md-3.mb-custom-thumb-fancy, figure.offer-thumb.offer-thumb__fancy',
     es: 'a[href*="/item/"]',
     fi: 'a[href*="/kohteet/"]',
+    ge: 'a[href*="/pr/"] article[data-testid="product-card"], article[data-testid="product-card"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
   };
@@ -149,6 +150,11 @@ const searchUrlByCountry = {
   fi: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/haku?q=${term}&page=${page}`;
+  },
+
+  ge: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/search/?Keyword=${term}&Page=${page}`;
   },
 
   es: ({ domain, query }) => {
