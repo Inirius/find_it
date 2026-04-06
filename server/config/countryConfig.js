@@ -81,6 +81,9 @@ export function getEbayMarketplace(country = 'fr') {
 }
 
 export function getVintedDomain(country = 'fr') {
+  if (country === 'gb') {
+    return 'www.vinted.co.uk';
+  }
   return `www.vinted.${country}`;
 }
 
