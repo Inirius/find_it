@@ -234,17 +234,11 @@ function App() {
             value={country}
             onChange={(e) => {
               const newCountry = e.target.value;
-              const newSources = { ...sources };
-              
-              // Désactiver eBay si non supporté
-              if (!hasEbaySupportBrowse(newCountry)) {
-                newSources.ebay = false;
-              }
-              
-              // Désactiver Vinted si non supporté
-              if (!hasVintedSupport(newCountry)) {
-                newSources.vinted = false;
-              }
+              const newSources = {
+                ebay: hasEbaySupportBrowse(newCountry),
+                leboncoin: true,
+                vinted: hasVintedSupport(newCountry),
+              };
               
               setCountry(newCountry);
               setSources(newSources);
