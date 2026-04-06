@@ -174,13 +174,13 @@ export function setupLeboncoinRoute(app) {
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
 
-      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, Kufar.by and Willhaben)
-      if (country === 'pl' || country === 'at' || country === 'bg') {
+      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, Kufar.by, Willhaben and Osta.ee)
+      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee') {
         console.log(`📜 Scrolling to load lazy-loaded content for ${config.name}...`);
         await page_obj.evaluate(() => {
           return new Promise((resolve) => {
             let scrolls = 0;
-            const maxScrolls = 14;
+            const maxScrolls = 18;
             const scrollInterval = setInterval(() => {
               window.scrollBy(0, window.innerHeight);
               scrolls++;
@@ -195,7 +195,12 @@ export function setupLeboncoinRoute(app) {
         });
 
         // Give browser more time for images/srcset to populate after scrolling
-        await new Promise(resolve => setTimeout(resolve, country === 'bg' || country === 'by' ? 5200 : 3250));
+        await new Promise(resolve => setTimeout(resolve, country === 'bg' || country === 'by' ? 5200 : country === 'ee' ? 7000 : 3250));
+      }
+
+      if (country === 'ee') {
+        // Osta.ee thumbnails often settle after the first render pass, so wait a bit longer before extraction.
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
 
       // Load more results for Wallapop (Spain) by clicking "Cargar más" button once, then scrolling

@@ -68,6 +68,7 @@ export function getExtractor(country) {
     pl: extractOlxData,
     au: extractGumtreeData,
     by: extractKufarData,
+    ee: extractOstaData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -711,6 +712,86 @@ export async function extractKufarData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Kufar ad data:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractOstaData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const listingCards = document.querySelectorAll('li.col-md-3.mb-custom-thumb-fancy');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    const toAbsoluteUrl = (href) => {
+      if (!href) return null;
+      return href.startsWith('http') ? href : `https://osta.ee${href}`;
+    };
+
+    const pickImageFromStyle = (styleText) => {
+      if (!styleText) return null;
+      const match = styleText.match(/url\(["']?(.*?)["']?\)/i);
+      return match?.[1] || null;
+    };
+
+    listingCards.forEach((card) => {
+      try {
+        const titleEl =
+          card.querySelector('h3.offer-thumb__title a') ||
+          card.querySelector('a.offer-thumb__link--anchor') ||
+          card.querySelector('a[href]');
+        const title = cleanText(titleEl?.textContent || titleEl?.getAttribute('title') || card.getAttribute('data-title')) || null;
+
+        const href = titleEl?.getAttribute('href') || card.querySelector('a[href]')?.getAttribute('href');
+        const url = toAbsoluteUrl(href);
+
+        const imageLink = card.querySelector('a.offer-thumb__link') || card.querySelector('figure.offer-thumb__image a[href]');
+        const imgEl = card.querySelector('img');
+        let image =
+          imgEl?.getAttribute('src') ||
+          imgEl?.getAttribute('data-original') ||
+          pickImageFromStyle(imageLink?.getAttribute('style')) ||
+          pickImageFromStyle(card.querySelector('figure.offer-thumb__image')?.getAttribute('style')) ||
+          null;
+
+        let price = null;
+        const dataPrice = card.querySelector('figure.offer-thumb')?.getAttribute('data-price') || card.querySelector('figure.offer-thumb__fancy')?.getAttribute('data-price');
+        const currentPriceEl = card.querySelector('.offer-thumb__price--current');
+        const buyNowPriceEl = card.querySelector('.buynow-brand-price');
+
+        if (dataPrice) {
+          price = `${cleanText(dataPrice)}€`;
+        } else if (currentPriceEl?.textContent) {
+          const normalized = cleanText(currentPriceEl.textContent);
+          const match = normalized.match(/([\d\s.,]+\s*€)/);
+          price = match ? match[1].trim() : normalized;
+        } else if (buyNowPriceEl?.textContent) {
+          const normalized = cleanText(buyNowPriceEl.textContent);
+          const match = normalized.match(/([\d\s.,]+\s*€)/);
+          price = match ? match[1].trim() : normalized;
+        }
+
+        let shipping = null;
+        const timeLeftEl = card.querySelector('.offer-thumb__metadata--item.timeleft span') || card.querySelector('.timeleft span');
+        if (timeLeftEl?.textContent) {
+          shipping = cleanText(timeLeftEl.textContent);
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Osta.ee item:', err.message);
       }
     });
 
