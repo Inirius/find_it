@@ -67,6 +67,7 @@ export function getExtractor(country) {
     nl: extract2ememainData,
     pl: extractOlxData,
     au: extractGumtreeData,
+    gb: extractGumtreeUkData,
     by: extractKufarData,
     ee: extractOstaData,
     fi: extractHuutoData,
@@ -662,6 +663,56 @@ export async function extractGumtreeData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Gumtree ad data:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractGumtreeUkData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('article[data-q="search-result"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    cards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a[data-q="search-result-anchor"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.gumtree.com${href}`) : null;
+
+        const titleEl = card.querySelector('[data-q="tile-title"]');
+        const title = cleanText(titleEl?.textContent) || null;
+
+        const imgEl = card.querySelector('figure img') || card.querySelector('img');
+        const image = imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || null;
+
+        let price = null;
+        const priceEl = card.querySelector('[data-q="tile-price"], [data-testid="price"]');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        let shipping = null;
+        const locationEl = card.querySelector('[data-q="tile-location"]');
+        if (locationEl?.textContent) {
+          shipping = cleanText(locationEl.textContent);
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Gumtree UK ad data:', err.message);
       }
     });
 

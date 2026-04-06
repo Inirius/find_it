@@ -22,9 +22,9 @@ export function setupLeboncoinRoute(app) {
       const { query = 'drone', page = '1', country = 'fr' } = req.query;
       const pageNum = Math.max(1, parseInt(page) || 1);
 
-      // Temporary deactivation: Gumtree (AU/GB) and Sbazar (CZ) require proxy setup
-      if (country === 'au' || country === 'gb' || country === 'cz') {
-        const isGumtree = country === 'au' || country === 'gb';
+      // Temporary deactivation: Gumtree (AU) and Sbazar (CZ) require proxy setup
+      if (country === 'au' || country === 'cz') {
+        const isGumtree = country === 'au';
         return res.status(503).json({
           success: false,
           error: isGumtree

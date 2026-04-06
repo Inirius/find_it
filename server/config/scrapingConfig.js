@@ -12,7 +12,7 @@ export function getItemsPerPage(country) {
     cz: 50, dk: 50, // Sbazar, DBA
     ee: 120, es: 40, // Osta, Wallapop
     fi: 24, fr: 37, // Huuto, LeBonCoin
-    gb: 50, ge: 50, // Gumtree, MyMarket
+    gb: 25, ge: 50, // Gumtree, MyMarket
     gr: 50, hr: 50, // Vendora, Njuskalo
     hu: 50, ie: 50, // Jofogas, DoneDeal
     is: 50, it: 50, // Bland, Subito
@@ -33,6 +33,7 @@ export function getItemsPerPage(country) {
 export function getSelector(country) {
   const selectors = {
     au: 'a[href*="/s-ad/"], a.user-ad-row-new-design, .user-ad-row-new-design__title-span',
+    gb: 'article[data-q="search-result"], a[data-q="search-result-anchor"]',
     ba: 'div.cardd a[href*="/artikal/"], a[href*="/artikal/"]',
     bg: 'div[data-cy="l-card"], a[href*="/d/ad/"]',
     by: 'section > a[data-testid="kufar-ad"]',
@@ -73,6 +74,11 @@ const searchUrlByCountry = {
     return page > 1
       ? `https://${domain}/s-${term}/page-${page}/k0`
       : `https://${domain}/s-${term}/k0`;
+  },
+
+  gb: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/search?search_category=game-consoles&search_location=uk&q=${term}&page=${page}`;
   },
 
   ba: ({ domain, query, page }) => {
