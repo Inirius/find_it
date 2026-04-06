@@ -61,6 +61,7 @@ export function getExtractor(country) {
     ba: extractOlxBaData,
     bg: extractOlxBgData,
     cy: extractVendoraData,
+    gr: extractVendoraData,
     be: extract2ememainData,
     at: extractWillhabenData,
     es: extractWallapopData,
