@@ -62,6 +62,7 @@ export function getExtractor(country) {
     bg: extractOlxBgData,
     cy: extractVendoraData,
     gr: extractVendoraData,
+    hr: extractNjuskaloData,
     be: extract2ememainData,
     at: extractWillhabenData,
     es: extractWallapopData,
@@ -946,6 +947,53 @@ export async function extractMyMarketData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting MyMarket item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractNjuskaloData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('li.EntityList-item article.entity-body');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    cards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('h3.entity-title a.link') || card.querySelector('a.link[href]');
+        const href = linkEl?.getAttribute('href') || linkEl?.getAttribute('data-href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.njuskalo.hr${href}`) : null;
+
+        const title = cleanText(linkEl?.textContent) || null;
+
+        const imgEl = card.querySelector('.entity-thumbnail img') || card.querySelector('img');
+        const image = imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || null;
+
+        let price = null;
+        const priceEl = card.querySelector('.entity-prices .price, strong.price');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        const locationText = cleanText(card.querySelector('.entity-description')?.textContent || '').replace(/^Lokacija:\s*/i, '');
+        const dateText = cleanText(card.querySelector('.entity-pub-date time')?.textContent || '');
+        const shipping = [locationText || null, dateText || null].filter(Boolean).join(' • ') || null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Njuskalo item:', err.message);
       }
     });
 

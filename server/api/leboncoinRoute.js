@@ -174,28 +174,55 @@ export function setupLeboncoinRoute(app) {
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
 
-      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, Kufar.by, Willhaben, Osta.ee, Huuto and MyMarket)
-      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi' || country === 'ge') {
+      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, Kufar.by, Willhaben, Osta.ee, Huuto, MyMarket and Njuskalo)
+      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi' || country === 'ge' || country === 'hr') {
         console.log(`📜 Scrolling to load lazy-loaded content for ${config.name}...`);
-        await page_obj.evaluate(() => {
-          return new Promise((resolve) => {
-            let scrolls = 0;
-            const maxScrolls = 18;
-            const scrollInterval = setInterval(() => {
-              window.scrollBy(0, window.innerHeight);
-              scrolls++;
-              if (scrolls >= maxScrolls) {
-                clearInterval(scrollInterval);
-                // Scroll back to top to load all images
-                window.scrollTo(0, 0);
-                resolve();
+        await page_obj.evaluate(async () => {
+          const forceLazyImages = () => {
+            const imgs = Array.from(document.querySelectorAll('img'));
+            imgs.forEach((img) => {
+              const dataSrc = img.getAttribute('data-src') || img.getAttribute('data-original');
+              const dataSrcset = img.getAttribute('data-srcset') || img.getAttribute('data-original-srcset');
+
+              if (dataSrc && !img.getAttribute('src')) {
+                img.setAttribute('src', dataSrc);
               }
-            }, 325); 
-          });
+
+              if (dataSrcset && !img.getAttribute('srcset')) {
+                img.setAttribute('srcset', dataSrcset);
+              }
+
+              img.setAttribute('loading', 'eager');
+              img.setAttribute('decoding', 'sync');
+            });
+          };
+
+          forceLazyImages();
+
+          let lastHeight = 0;
+          let stablePasses = 0;
+          const maxPasses = 40;
+
+          for (let i = 0; i < maxPasses && stablePasses < 4; i += 1) {
+            window.scrollTo(0, document.body.scrollHeight);
+            await new Promise((resolve) => setTimeout(resolve, 280));
+            forceLazyImages();
+
+            const newHeight = document.body.scrollHeight;
+            if (newHeight === lastHeight) {
+              stablePasses += 1;
+            } else {
+              stablePasses = 0;
+              lastHeight = newHeight;
+            }
+          }
+
+          // Return to top once all cards/images are hydrated.
+          window.scrollTo(0, 0);
         });
 
-        // Give browser more time for images/srcset to populate after scrolling
-        await new Promise(resolve => setTimeout(resolve, country === 'bg' || country === 'by' ? 5200 : country === 'ee' ? 7000 : country === 'fi' ? 4500 : country === 'ge' ? 4200 : 3250));
+        // Give browser time to decode images after the forced lazy-load pass.
+        await new Promise(resolve => setTimeout(resolve, country === 'ee' ? 8200 : country === 'bg' || country === 'by' ? 6200 : 5200));
       }
 
       if (country === 'ee') {

@@ -13,7 +13,7 @@ export function getItemsPerPage(country) {
     ee: 120, es: 40, // Osta, Wallapop
     fi: 24, fr: 37, // Huuto, LeBonCoin
     gb: 25, ge: 50, // Gumtree, MyMarket
-    gr: 36, hr: 50, // Vendora, Njuskalo
+    gr: 36, hr: 32, // Vendora, Njuskalo
     hu: 50, ie: 50, // Jofogas, DoneDeal
     is: 50, it: 50, // Bland, Subito
     kz: 50, lt: 50, // OLX, Skelbiu
@@ -39,6 +39,7 @@ export function getSelector(country) {
     by: 'section > a[data-testid="kufar-ad"]',
     cy: 'div.grid-items-col a.card-product, a.card.vCard.card-product',
     gr: 'div.grid-items-col a.card-product, a.card.vCard.card-product',
+    hr: 'li.EntityList-item article.entity-body, li.EntityList-item a.entity-title, li.EntityList-item a.link',
     cz: 'li[data-offer-id]',
     dk: 'article.sf-search-ad, article[class*="sf-search-ad"]',
     fr: '[data-test-id="ad"]',
@@ -119,6 +120,11 @@ const searchUrlByCountry = {
   gr: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/items?q=${term}&page=${page}`;
+  },
+
+  hr: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/search/?keywords=${term}&page=${page}`;
   },
 
   cz: ({ domain, query, page }) => {
