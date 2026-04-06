@@ -69,6 +69,7 @@ export function getExtractor(country) {
     au: extractGumtreeData,
     by: extractKufarData,
     ee: extractOstaData,
+    fi: extractHuutoData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -792,6 +793,58 @@ export async function extractOstaData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Osta.ee item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractHuutoData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('a[href*="/kohteet/"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    cards.forEach((linkEl) => {
+      try {
+        const href = linkEl.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.huuto.net${href}`) : null;
+
+        const titleEl = linkEl.querySelector('h2');
+        const title = cleanText(titleEl?.textContent) || null;
+
+        const imgEl = linkEl.querySelector('img');
+        let image =
+          imgEl?.getAttribute('src') ||
+          imgEl?.getAttribute('data-src') ||
+          null;
+
+        let price = null;
+        const priceEl = Array.from(linkEl.querySelectorAll('span')).find((el) => el.textContent?.includes('€'));
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        let shipping = null;
+        const locationEl = linkEl.querySelector('span.mt-1.truncate');
+        if (locationEl?.textContent) {
+          shipping = cleanText(locationEl.textContent);
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Huuto item:', err.message);
       }
     });
 

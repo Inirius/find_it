@@ -11,7 +11,7 @@ export function getItemsPerPage(country) {
     by: 50, cy: 50, // Kufar, Vendora
     cz: 50, dk: 50, // Sbazar, DBA
     ee: 120, es: 40, // Osta, Wallapop
-    fi: 50, fr: 37, // Huuto, LeBonCoin
+    fi: 24, fr: 37, // Huuto, LeBonCoin
     gb: 50, ge: 50, // Gumtree, MyMarket
     gr: 50, hr: 50, // Vendora, Njuskalo
     hu: 50, ie: 50, // Jofogas, DoneDeal
@@ -45,6 +45,7 @@ export function getSelector(country) {
     at: 'a[href*="/iad/kaufen-und-verkaufen/d/"], div[id*="search-result-entry"]',
     ee: 'li.col-md-3.mb-custom-thumb-fancy, figure.offer-thumb.offer-thumb__fancy',
     es: 'a[href*="/item/"]',
+    fi: 'a[href*="/kohteet/"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
   };
@@ -137,6 +138,11 @@ const searchUrlByCountry = {
     const term = normalize.plus(query);
     const start = ((page - 1) * 120) + 1;
     return `https://osta.ee/?fuseaction=search.search&q[q]=${term}&start=${start}`;
+  },
+
+  fi: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/haku?q=${term}&page=${page}`;
   },
 
   es: ({ domain, query }) => {

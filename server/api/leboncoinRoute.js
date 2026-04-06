@@ -174,8 +174,8 @@ export function setupLeboncoinRoute(app) {
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
 
-      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, Kufar.by, Willhaben and Osta.ee)
-      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee') {
+      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, Kufar.by, Willhaben, Osta.ee and Huuto)
+      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi') {
         console.log(`📜 Scrolling to load lazy-loaded content for ${config.name}...`);
         await page_obj.evaluate(() => {
           return new Promise((resolve) => {
@@ -195,7 +195,7 @@ export function setupLeboncoinRoute(app) {
         });
 
         // Give browser more time for images/srcset to populate after scrolling
-        await new Promise(resolve => setTimeout(resolve, country === 'bg' || country === 'by' ? 5200 : country === 'ee' ? 7000 : 3250));
+        await new Promise(resolve => setTimeout(resolve, country === 'bg' || country === 'by' ? 5200 : country === 'ee' ? 7000 : country === 'fi' ? 4500 : 3250));
       }
 
       if (country === 'ee') {
