@@ -316,22 +316,26 @@ export function setupLeboncoinRoute(app) {
           forceLazyImages();
 
           let lastHeight = 0;
+          let lastScrollY = -1;
           let stablePasses = 0;
-          const maxPasses = 10;
-          const scrollDelayMs = 325;
+          const maxPasses = 20;
+          const scrollDelayMs = 30;
           const stableThreshold = 3;
+          const scrollStep = Math.floor(window.innerHeight / 2);
 
           for (let i = 0; i < maxPasses && stablePasses < stableThreshold; i += 1) {
-            window.scrollTo(0, document.body.scrollHeight);
+            window.scrollBy(0, scrollStep);
             await new Promise((resolve) => setTimeout(resolve, scrollDelayMs));
             forceLazyImages();
 
             const newHeight = document.body.scrollHeight;
-            if (newHeight === lastHeight) {
+            const newScrollY = window.scrollY;
+            if (newHeight === lastHeight && newScrollY === lastScrollY) {
               stablePasses += 1;
             } else {
               stablePasses = 0;
               lastHeight = newHeight;
+              lastScrollY = newScrollY;
             }
           }
 
