@@ -70,9 +70,15 @@ export function setupLeboncoinRoute(app) {
 
       // Set realistic viewport and user agent
       await page_obj.setViewport({ width: 1920, height: 1080 });
-      await page_obj.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page_obj.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36');
+
+      const acceptLanguageByCountry = {
+        au: 'en-AU,en;q=0.9',
+        ie: 'en-IE,en;q=0.9',
+      };
+
       await page_obj.setExtraHTTPHeaders({
-        'accept-language': 'en-AU,en;q=0.9,fr;q=0.8',
+        'accept-language': acceptLanguageByCountry[country] || 'en-US,en;q=0.9',
         'upgrade-insecure-requests': '1',
       });
 
@@ -103,6 +109,65 @@ export function setupLeboncoinRoute(app) {
         await page_obj.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       }
 
+      if (country === 'ie') {
+        const detectIeChallenge = async () => {
+          return page_obj.evaluate(() => {
+            const title = (document.title || '').toLowerCase();
+            const bodyText = (document.body?.innerText || '').toLowerCase();
+
+            const hasChallengeSignal =
+              title.includes('just a moment') ||
+              title.includes('attention required') ||
+              bodyText.includes('just a moment') ||
+              bodyText.includes('checking your browser') ||
+              bodyText.includes('verify you are human') ||
+              bodyText.includes('challenge') ||
+              bodyText.includes('cloudflare') ||
+              bodyText.includes('cf-challenge');
+
+            return {
+              href: window.location.href,
+              title: document.title,
+              bodyLength: document.body?.innerText?.length || 0,
+              hasChallengeSignal,
+            };
+          });
+        };
+
+        let ieChallengeState = await detectIeChallenge();
+        if (ieChallengeState.hasChallengeSignal) {
+          console.warn('🪵 [DONEDEAL] Challenge detected after first load, retrying once...');
+          await new Promise((resolve) => setTimeout(resolve, 4500));
+
+          try {
+            await page_obj.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+            await new Promise((resolve) => setTimeout(resolve, 4500));
+            ieChallengeState = await detectIeChallenge();
+          } catch (reloadErr) {
+            console.warn('🪵 [DONEDEAL] Reload failed during challenge recovery:', reloadErr.message);
+          }
+        }
+
+        if (ieChallengeState.hasChallengeSignal) {
+          console.warn('🪵 [DONEDEAL] Challenge persists, returning explicit 503 instead of empty results.');
+          if (browser) {
+            await browser.close();
+            browser = null;
+          }
+
+          return res.status(503).json({
+            success: false,
+            blocked: true,
+            error: 'DoneDeal is currently blocking automated access (challenge page detected).',
+            details: 'Cloudflare challenge detected on DoneDeal. Retry later, use a residential proxy, or run from an IP with better reputation.',
+            country,
+            page: pageNum,
+            searchUrl,
+            source: getSourceName(country),
+          });
+        }
+      }
+
       // Note: Sbazar (CZ) is temporarily deactivated above.
 
       if (country === 'au') {
@@ -131,6 +196,11 @@ export function setupLeboncoinRoute(app) {
       const selector = getSelector(country);
 
       if (country === 'au') {
+        console.log(`🪵 [${config.name.toUpperCase()}] Waiting for selector:`, selector);
+        console.log(`🪵 [${config.name.toUpperCase()}] Search URL:`, searchUrl);
+      }
+
+      if (country === 'ie') {
         console.log(`🪵 [${config.name.toUpperCase()}] Waiting for selector:`, selector);
         console.log(`🪵 [${config.name.toUpperCase()}] Search URL:`, searchUrl);
       }
@@ -171,7 +241,53 @@ export function setupLeboncoinRoute(app) {
           console.log('🪵 [GUMTREE] Selector timeout debug:', selectorDebug);
         }
 
+        if (country === 'ie') {
+          const selectorDebug = await page_obj.evaluate(() => {
+            const selectors = [
+              'li[data-testid^="listing-card-index-"]',
+              'li[data-testid*="listing-card"]',
+              'a[href*="/games-for-sale/"]',
+              'a[href*="/for-sale/"]',
+            ];
+
+            const counts = {};
+            selectors.forEach((s) => {
+              counts[s] = document.querySelectorAll(s).length;
+            });
+
+            const bodyText = (document.body?.innerText || '').toLowerCase();
+            return {
+              href: window.location.href,
+              title: document.title,
+              readyState: document.readyState,
+              counts,
+              bodyLength: document.body?.innerText?.length || 0,
+              hasCaptchaWord: bodyText.includes('captcha'),
+              hasRobotWord: bodyText.includes('robot'),
+              hasAccessDeniedWord: bodyText.includes('access denied'),
+              hasJustMomentWord: bodyText.includes('just a moment'),
+              hasChallengeWord: bodyText.includes('challenge'),
+            };
+          });
+          console.log('🪵 [DONEDEAL] Selector timeout debug:', selectorDebug);
+        }
+
         await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+
+      if (country === 'ie') {
+        try {
+          await page_obj.waitForFunction(
+            () => {
+              const cardCount = document.querySelectorAll('li[data-testid^="listing-card-index-"], li[data-testid*="listing-card"]').length;
+              const linkCount = document.querySelectorAll('a[href*="/games-for-sale/"], a[href*="/for-sale/"]').length;
+              return cardCount > 0 || linkCount > 0;
+            },
+            { timeout: 12000 }
+          );
+        } catch (_ieWaitErr) {
+          // We keep going so extractor fallback can still attempt recovery.
+        }
       }
 
       // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, Kufar.by, Willhaben, Osta.ee, Huuto, MyMarket and Njuskalo)
@@ -335,6 +451,16 @@ export function setupLeboncoinRoute(app) {
       if (country === 'au') {
         const preExtractCount = await page_obj.evaluate((sel) => document.querySelectorAll(sel).length, selector);
         console.log(`🪵 [${config.name.toUpperCase()}] Pre-extract element count (${selector}):`, preExtractCount);
+      }
+
+      if (country === 'ie') {
+        const preExtractDebug = await page_obj.evaluate(() => ({
+          cards: document.querySelectorAll('li[data-testid^="listing-card-index-"], li[data-testid*="listing-card"]').length,
+          links: document.querySelectorAll('a[href*="/games-for-sale/"], a[href*="/for-sale/"]').length,
+          href: window.location.href,
+          title: document.title,
+        }));
+        console.log(`🪵 [${config.name.toUpperCase()}] Pre-extract debug:`, preExtractDebug);
       }
 
       let pageData = await extractor(page_obj);

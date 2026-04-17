@@ -75,6 +75,7 @@ export function getExtractor(country) {
     fi: extractHuutoData,
     ge: extractMyMarketData,
     hu: extractJofogasData,
+    ie: extractDoneDealData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -967,6 +968,104 @@ export async function extractJofogasData(page_obj) {
         console.warn('Error extracting Jofogas item:', err.message);
       }
     });
+
+    return results;
+  });
+}
+
+export async function extractDoneDealData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('li[data-testid^="listing-card-index-"], li[data-testid*="listing-card"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+    const seenUrls = new Set();
+
+    const extractFromContainer = (container) => {
+      const linkEl = container.querySelector('a[href]');
+      const href = linkEl?.getAttribute('href');
+      const url = href
+        ? (href.startsWith('http') ? href : `https://www.donedeal.ie${href}`)
+        : null;
+
+      if (!url || seenUrls.has(url)) {
+        return null;
+      }
+
+      const titleEl =
+        container.querySelector('[data-testid="card-title"]') ||
+        container.querySelector('p[class*="SearchCardstyled__Title"]') ||
+        container.querySelector('h2, h3, p');
+      const title = cleanText(titleEl?.textContent) || null;
+
+      const imgEl = container.querySelector('img');
+      const image =
+        imgEl?.getAttribute('src') ||
+        imgEl?.getAttribute('data-src') ||
+        null;
+
+      let price = null;
+      const priceEl =
+        container.querySelector('[data-testid="card-price"]') ||
+        container.querySelector('div[class*="Pricestyled__Price"]') ||
+        container.querySelector('div[class*="Price"]');
+      if (priceEl?.textContent) {
+        const m = cleanText(priceEl.textContent).match(/€\s*[\d.,]+/);
+        price = m ? m[0] : cleanText(priceEl.textContent);
+      }
+
+      let shipping = null;
+      const metaItems = Array.from(container.querySelectorAll('ul li'))
+        .map((el) => cleanText(el.textContent))
+        .filter(Boolean);
+      if (metaItems.length > 0) {
+        shipping = metaItems.slice(0, 2).join(' • ');
+      }
+
+      if (!title) {
+        return null;
+      }
+
+      seenUrls.add(url);
+      return {
+        title,
+        url,
+        image,
+        alt: title,
+        price,
+        shipping,
+      };
+    };
+
+    cards.forEach((card) => {
+      try {
+        const item = extractFromContainer(card);
+        if (item) {
+          results.push(item);
+        }
+      } catch (err) {
+        console.warn('Error extracting DoneDeal item:', err.message);
+      }
+    });
+
+    // Fallback: if list-item wrappers are missing, parse directly from listing links.
+    if (results.length === 0) {
+      const links = document.querySelectorAll('a[href*="/games-for-sale/"], a[href*="/for-sale/"]');
+      links.forEach((link) => {
+        try {
+          const container = link.closest('li') || link.closest('article') || link.parentElement;
+          if (!container) {
+            return;
+          }
+          const item = extractFromContainer(container);
+          if (item) {
+            results.push(item);
+          }
+        } catch (err) {
+          console.warn('Error extracting DoneDeal fallback item:', err.message);
+        }
+      });
+    }
 
     return results;
   });

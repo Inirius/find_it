@@ -14,7 +14,7 @@ export function getItemsPerPage(country) {
     fi: 24, fr: 37, // Huuto, LeBonCoin
     gb: 25, ge: 50, // Gumtree, MyMarket
     gr: 36, hr: 32, // Vendora, Njuskalo
-    hu: 36, ie: 50, // Jofogas, DoneDeal
+    hu: 36, ie: 30, // Jofogas, DoneDeal
     is: 50, it: 50, // Bland, Subito
     kz: 50, lt: 50, // OLX, Skelbiu
     lv: 50, mk: 50, // SS.lv, Pazar3
@@ -41,6 +41,7 @@ export function getSelector(country) {
     gr: 'div.grid-items-col a.card-product, a.card.vCard.card-product',
     hr: 'li.EntityList-item article.entity-body, li.EntityList-item a.entity-title, li.EntityList-item a.link',
     hu: '[data-testid="ad-card-general"]',
+    ie: 'li[data-testid^="listing-card-index-"], li[data-testid*="listing-card"], a[href*="/games-for-sale/"]',
     cz: 'li[data-offer-id]',
     dk: 'article.sf-search-ad, article[class*="sf-search-ad"]',
     fr: '[data-test-id="ad"]',
@@ -132,6 +133,12 @@ const searchUrlByCountry = {
     const term = normalize.encoded(query);
     const pagination = page > 1 ? `&o=${page}` : '';
     return `https://${domain}/magyarorszag?q=${term}${pagination}`;
+  },
+
+  ie: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    const start = Math.max(0, (page - 1) * 30);
+    return `https://${domain}/all?words=${term}&start=${start}`;
   },
 
   cz: ({ domain, query, page }) => {
