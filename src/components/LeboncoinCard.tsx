@@ -26,7 +26,7 @@ export default function LeboncoinCard({ title, url, image, alt, price, shipping 
           title ?? 'Titre indisponible'
         )}
       </h3>
-      <div style={{color: '#111', fontWeight: 700, marginBottom: 6}}>{price ?? ''}</div>
+      <div style={{color: '#fff', fontWeight: 700, marginBottom: 6}}>{price ?? ''}</div>
       {shipping && (
         <div style={{color: '#555'}}>{shipping}</div>
       )}

@@ -1,5 +1,3 @@
-import React from 'react';
-
 type Props = {
   title: string | null;
   url: string | null;
@@ -28,7 +26,7 @@ export default function EbayCard({ title, url, image, alt, price, shipping }: Pr
           title ?? 'Titre indisponible'
         )}
       </h3>
-      <div style={{color: '#111', fontWeight: 700, marginBottom: 6}}>{price ?? ''}</div>
+      <div style={{color: '#fff', fontWeight: 700, marginBottom: 6}}>{price ?? ''}</div>
       {shipping && (
         <div style={{color: '#555'}}>Livraison: {shipping}</div>
       )}

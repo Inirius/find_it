@@ -15,7 +15,7 @@ export function getItemsPerPage(country) {
     gb: 25, ge: 50, // Gumtree, MyMarket
     gr: 36, hr: 32, // Vendora, Njuskalo
     hu: 36, ie: 30, // Jofogas, DoneDeal
-    is: 50, it: 50, // Bland, Subito
+    is: 50, it: 30, // Bland, Subito
     kz: 50, lt: 50, // OLX, Skelbiu
     lv: 50, mk: 50, // SS.lv, Pazar3
     md: 50, mt: 50, // 999.md, MaltaPark
