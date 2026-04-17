@@ -74,6 +74,7 @@ export function getExtractor(country) {
     ee: extractOstaData,
     fi: extractHuutoData,
     ge: extractMyMarketData,
+    hu: extractJofogasData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -899,6 +900,71 @@ export async function extractHuutoData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Huuto item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractJofogasData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('[data-testid="ad-card-general"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    cards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a[href*="jofogas.hu/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.jofogas.hu${href}`) : null;
+
+        const titleEl = linkEl?.querySelector('h5') || card.querySelector('h5');
+        const title = cleanText(titleEl?.textContent) || null;
+
+        const imgEl = card.querySelector('a img') || card.querySelector('img');
+        const image = imgEl?.getAttribute('src') || imgEl?.getAttribute('data-src') || null;
+
+        let price = null;
+        const priceBlock = Array.from(card.querySelectorAll('h3, h6, span, p'))
+          .map((el) => cleanText(el.textContent))
+          .filter(Boolean)
+          .find((text) => /Ft\b/i.test(text) || /^\d+[\d\s.,]*$/.test(text));
+
+        if (priceBlock) {
+          const valueMatch = priceBlock.match(/([\d\s.,]+)/);
+          const suffixMatch = priceBlock.match(/Ft\b/i);
+          if (valueMatch) {
+            price = `${valueMatch[1].trim()}${suffixMatch ? ' Ft' : ''}`.trim();
+          } else {
+            price = priceBlock;
+          }
+        }
+
+        const bodyTexts = Array.from(card.querySelectorAll('p'))
+          .map((el) => cleanText(el.textContent))
+          .filter(Boolean);
+
+        let shipping = null;
+        if (bodyTexts.length >= 2) {
+          const location = bodyTexts[bodyTexts.length - 2];
+          const date = bodyTexts[bodyTexts.length - 1];
+          shipping = [location, date].filter(Boolean).join(' • ') || null;
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Jofogas item:', err.message);
       }
     });
 
