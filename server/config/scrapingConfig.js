@@ -41,6 +41,7 @@ export function getSelector(country) {
     gr: 'div.grid-items-col a.card-product, a.card.vCard.card-product',
     hr: 'li.EntityList-item article.entity-body, li.EntityList-item a.entity-title, li.EntityList-item a.link',
     hu: '[data-testid="ad-card-general"]',
+    it: 'article.index-module_card__dW0sY, article:has(a[href*="subito.it/videogiochi/"]), article:has(a[href*="subito.it/"])',
     is: 'div.classifiedentry, div[data-page], div.searchList',
     ie: 'li[data-testid^="listing-card-index-"], li[data-testid*="listing-card"], a[href*="/games-for-sale/"]',
     cz: 'li[data-offer-id]',
@@ -134,6 +135,12 @@ const searchUrlByCountry = {
     const term = normalize.encoded(query);
     const pagination = page > 1 ? `&o=${page}` : '';
     return `https://${domain}/magyarorszag?q=${term}${pagination}`;
+  },
+
+  it: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    const pagination = page > 1 ? `&o=${page}` : '';
+    return `https://${domain}/annunci-italia/vendita/usato/?q=${term}${pagination}`;
   },
 
   is: ({ domain, query, page }) => {

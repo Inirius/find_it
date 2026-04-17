@@ -75,6 +75,7 @@ export function getExtractor(country) {
     fi: extractHuutoData,
     ge: extractMyMarketData,
     hu: extractJofogasData,
+    it: extractSubitoData,
     is: extractBlandData,
     ie: extractDoneDealData,
   };
@@ -1052,6 +1053,82 @@ export async function extractBlandData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Bland item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractSubitoData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('article.index-module_card__dW0sY, article');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      return `https://www.subito.it${value}`;
+    };
+
+    const pickFromSrcset = (srcset) => {
+      if (!srcset) return null;
+      const candidates = srcset
+        .split(',')
+        .map((entry) => entry.trim().split(' ')[0])
+        .filter(Boolean);
+      return candidates.length ? candidates[0] : null;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a.index-module_link__onvFH[href]') || card.querySelector('a[href*="subito.it/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const titleEl = card.querySelector('h3.index-module_subject__m4Sp9') || card.querySelector('h3') || card.querySelector('[class*="subject"]');
+        const title = cleanText(titleEl?.textContent || titleEl?.getAttribute('title')) || null;
+
+        const imgEl = card.querySelector('img.index-module_image__2sWAS') || card.querySelector('img');
+        const image =
+          pickFromSrcset(imgEl?.getAttribute('srcset')) ||
+          imgEl?.getAttribute('src') ||
+          imgEl?.getAttribute('data-src') ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('p.index-module_price__Fc9-u') || card.querySelector('[class*="price"]');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        let shipping = null;
+        const shippingEl = card.querySelector('svg[role="img"] title, title');
+        if (shippingEl?.textContent) {
+          shipping = cleanText(shippingEl.textContent);
+        }
+        if (!shipping) {
+          const locationEl = card.querySelector('span.index-module_location__vLPWy, .index-module_location__vLPWy');
+          const location = cleanText(locationEl?.textContent) || null;
+          if (location) {
+            shipping = location;
+          }
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Subito item:', err.message);
       }
     });
 
