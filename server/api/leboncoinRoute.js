@@ -291,7 +291,7 @@ export function setupLeboncoinRoute(app) {
       }
 
       // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, Kufar.by, Willhaben, Osta.ee, Huuto, MyMarket and Njuskalo)
-      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi' || country === 'ge' || country === 'hr') {
+      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi' || country === 'ge' || country === 'hr' || country === 'kz') {
         console.log(`📜 Scrolling to load lazy-loaded content for ${config.name}...`);
         await page_obj.evaluate(async () => {
           const forceLazyImages = () => {
@@ -317,11 +317,13 @@ export function setupLeboncoinRoute(app) {
 
           let lastHeight = 0;
           let stablePasses = 0;
-          const maxPasses = 40;
+          const maxPasses = 10;
+          const scrollDelayMs = 325;
+          const stableThreshold = 3;
 
-          for (let i = 0; i < maxPasses && stablePasses < 4; i += 1) {
+          for (let i = 0; i < maxPasses && stablePasses < stableThreshold; i += 1) {
             window.scrollTo(0, document.body.scrollHeight);
-            await new Promise((resolve) => setTimeout(resolve, 280));
+            await new Promise((resolve) => setTimeout(resolve, scrollDelayMs));
             forceLazyImages();
 
             const newHeight = document.body.scrollHeight;
@@ -338,7 +340,7 @@ export function setupLeboncoinRoute(app) {
         });
 
         // Give browser time to decode images after the forced lazy-load pass.
-        await new Promise(resolve => setTimeout(resolve, country === 'ee' ? 8200 : country === 'bg' || country === 'by' ? 6200 : 5200));
+        await new Promise(resolve => setTimeout(resolve, 3250));
       }
 
       if (country === 'ee') {

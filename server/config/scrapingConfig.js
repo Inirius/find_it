@@ -44,6 +44,7 @@ export function getSelector(country) {
     it: 'article.index-module_card__dW0sY, article:has(a[href*="subito.it/videogiochi/"]), article:has(a[href*="subito.it/"])',
     is: 'div.classifiedentry, div[data-page], div.searchList',
     ie: 'li[data-testid^="listing-card-index-"], li[data-testid*="listing-card"], a[href*="/games-for-sale/"]',
+    kz: 'div[data-cy="l-card"], div[data-testid="l-card"]',
     cz: 'li[data-offer-id]',
     dk: 'article.sf-search-ad, article[class*="sf-search-ad"]',
     fr: '[data-test-id="ad"]',
@@ -141,6 +142,11 @@ const searchUrlByCountry = {
     const term = normalize.plus(query);
     const pagination = page > 1 ? `&o=${page}` : '';
     return `https://${domain}/annunci-italia/vendita/usato/?q=${term}${pagination}`;
+  },
+
+  kz: ({ domain, query, page }) => {
+    const term = normalize.dash(query);
+    return `https://${domain}/list/q-${term}/?page=${page}`;
   },
 
   is: ({ domain, query, page }) => {
