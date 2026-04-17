@@ -75,6 +75,7 @@ export function getExtractor(country) {
     fi: extractHuutoData,
     ge: extractMyMarketData,
     hu: extractJofogasData,
+    is: extractBlandData,
     ie: extractDoneDealData,
   };
   return extractors[country] || extractors.fr;
@@ -966,6 +967,91 @@ export async function extractJofogasData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Jofogas item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractBlandData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div.classifiedentry');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    const pickBackgroundImage = (styleText) => {
+      if (!styleText) return null;
+      const match = styleText.match(/url\(['"]?(.*?)['"]?\)/i);
+      return match?.[1] || null;
+    };
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://bland.is${value}`;
+      return value;
+    };
+
+    const firstNonEmpty = (...values) => values.find((value) => Boolean(value)) || null;
+
+    cards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a.clickEntry[href]') || card.querySelector('h3 a[href]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://bland.is${href}`) : null;
+
+        const titleEl = card.querySelector('h3 a.clickEntry') || card.querySelector('h3 a') || card.querySelector('h3');
+        const title = cleanText(titleEl?.textContent || titleEl?.getAttribute('title')) || null;
+
+        const imgEl = card.querySelector('.classifiedImage img') || card.querySelector('img');
+        const previewLink = card.querySelector('a.filesPreview');
+        const thumbEl = card.querySelector('.thumbimg');
+        const srcset = imgEl?.getAttribute('srcset') || imgEl?.getAttribute('data-srcset');
+        const bestFromSrcset = srcset
+          ? srcset
+              .split(',')
+              .map((entry) => entry.trim().split(' ')[0])
+              .filter(Boolean)
+              .pop()
+          : null;
+        const image = normalizeUrl(
+          firstNonEmpty(
+            imgEl?.getAttribute('src'),
+            imgEl?.getAttribute('data-src'),
+            bestFromSrcset,
+            previewLink?.getAttribute('data-cover'),
+            previewLink?.getAttribute('data-images'),
+            pickBackgroundImage(thumbEl?.getAttribute('style')),
+            pickBackgroundImage(previewLink?.getAttribute('style')),
+          )
+        );
+
+        let price = null;
+        const priceEl = card.querySelector('.priceRight .orangeText') || card.querySelector('.priceRight p');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        const addressEl = card.querySelector('.classifiedAddress a') || card.querySelector('.classifiedAddress');
+        const dateEl = card.querySelector('#galleryClassifiedDate') || card.querySelector('.dateSeparator + span');
+        const location = cleanText(addressEl?.textContent) || null;
+        const date = cleanText(dateEl?.textContent) || null;
+        const shipping = [location, date].filter(Boolean).join(' • ') || null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Bland item:', err.message);
       }
     });
 

@@ -41,6 +41,7 @@ export function getSelector(country) {
     gr: 'div.grid-items-col a.card-product, a.card.vCard.card-product',
     hr: 'li.EntityList-item article.entity-body, li.EntityList-item a.entity-title, li.EntityList-item a.link',
     hu: '[data-testid="ad-card-general"]',
+    is: 'div.classifiedentry, div[data-page], div.searchList',
     ie: 'li[data-testid^="listing-card-index-"], li[data-testid*="listing-card"], a[href*="/games-for-sale/"]',
     cz: 'li[data-offer-id]',
     dk: 'article.sf-search-ad, article[class*="sf-search-ad"]',
@@ -133,6 +134,11 @@ const searchUrlByCountry = {
     const term = normalize.encoded(query);
     const pagination = page > 1 ? `&o=${page}` : '';
     return `https://${domain}/magyarorszag?q=${term}${pagination}`;
+  },
+
+  is: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/classified/?q=${term}&page=${page}`;
   },
 
   ie: ({ domain, query, page }) => {
