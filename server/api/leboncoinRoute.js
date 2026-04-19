@@ -8,6 +8,7 @@ import {
 } from '../config/countryConfig.js';
 import {
   getItemsPerPage,
+  getLazyScrollConfig,
   getSelector,
   getSearchUrl,
 } from '../config/scrapingConfig.js';
@@ -377,11 +378,12 @@ export function setupLeboncoinRoute(app) {
         }
       }
 
-      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, OLX.pt, OLX.ro, Kufar.by, Willhaben, Osta.ee, Huuto, MyMarket, Avito.ru and Njuskalo)
-      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi' || country === 'ge' || country === 'hr' || country === 'kz' || country === 'pt' || country === 'ro' || country === 'ru') {
+      const lazyScrollConfig = getLazyScrollConfig(country);
+
+      // Apply country-specific lazy scrolling strategy when enabled.
+      if (lazyScrollConfig.enabled) {
         console.log(`📜 Scrolling to load lazy-loaded content for ${config.name}...`);
-        const isAvito = country === 'ru';
-        await page_obj.evaluate(async (avitoMode) => {
+        await page_obj.evaluate(async (scrollConfig) => {
           const forceLazyImages = () => {
             const imgs = Array.from(document.querySelectorAll('img'));
             imgs.forEach((img) => {
@@ -406,12 +408,10 @@ export function setupLeboncoinRoute(app) {
           let lastHeight = 0;
           let lastScrollY = -1;
           let stablePasses = 0;
-          // Avito-specific aggressive settings
-          const maxPasses = avitoMode ? 500 : 50;
-          const scrollDelayMs = avitoMode ? 500 : 30;
-          const stableThreshold = avitoMode ? 10 : 3;
-          const scroll_nb = avitoMode ? 4 : 2;
-          const scrollStep = Math.floor(window.innerHeight / scroll_nb);
+          const maxPasses = scrollConfig.maxPasses;
+          const scrollDelayMs = scrollConfig.scrollDelayMs;
+          const stableThreshold = scrollConfig.stableThreshold;
+          const scrollStep = Math.max(1, Math.floor(window.innerHeight / scrollConfig.scrollStepDivisor));
 
           for (let i = 0; i < maxPasses && stablePasses < stableThreshold; i += 1) {
             window.scrollBy(0, scrollStep);
@@ -431,11 +431,10 @@ export function setupLeboncoinRoute(app) {
 
           // Return to top once all cards/images are hydrated.
           window.scrollTo(0, 0);
-        }, isAvito);
+        }, lazyScrollConfig);
 
         // Give browser time to decode images after the forced lazy-load pass.
-        const decodeDelay = isAvito ? 5000 : 3250;
-        await new Promise(resolve => setTimeout(resolve, decodeDelay));
+        await new Promise(resolve => setTimeout(resolve, lazyScrollConfig.decodeDelayMs));
       }
 
       if (country === 'ee') {

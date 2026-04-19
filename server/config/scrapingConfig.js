@@ -30,6 +30,43 @@ export function getItemsPerPage(country) {
   return itemsPerPage[country] || 50;
 }
 
+const defaultLazyScrollConfig = {
+  enabled: false,
+  maxPasses: 50,
+  scrollDelayMs: 30,
+  stableThreshold: 3,
+  scrollStepDivisor: 2,
+  decodeDelayMs: 3250,
+};
+
+const lazyScrollByCountry = {
+  pl: { enabled: true },
+  at: { enabled: true },
+  bg: { enabled: true },
+  ee: { enabled: true },
+  fi: { enabled: true },
+  ge: { enabled: true },
+  hr: { enabled: true },
+  kz: { enabled: true },
+  pt: { enabled: true },
+  ro: { enabled: true },
+  ru: {
+    enabled: true,
+    maxPasses: 500,
+    scrollDelayMs: 500,
+    stableThreshold: 10,
+    scrollStepDivisor: 4,
+    decodeDelayMs: 5000,
+  },
+};
+
+export function getLazyScrollConfig(country) {
+  return {
+    ...defaultLazyScrollConfig,
+    ...(lazyScrollByCountry[country] || {}),
+  };
+}
+
 export function getSelector(country) {
   const selectors = {
     au: 'a[href*="/s-ad/"], a.user-ad-row-new-design, .user-ad-row-new-design__title-span',
