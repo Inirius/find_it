@@ -79,6 +79,7 @@ export function getExtractor(country) {
     is: extractBlandData,
     kz: extractOlxKzData,
     ie: extractDoneDealData,
+    lt: extractSkelbIUData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -1380,6 +1381,71 @@ export async function extractNjuskaloData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Njuskalo item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractSkelbIUData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const links = document.querySelectorAll('a.js-cfuser-link.standard-list-item, a.standard-list-item');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.skelbiu.lt${value}`;
+      return value;
+    };
+
+    links.forEach((linkEl) => {
+      try {
+        // URL from link href
+        const href = linkEl.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        // Title from div.collapsed-info > div.title
+        const titleEl = linkEl.querySelector('div.collapsed-info > div.title');
+        const title = titleEl ? cleanText(titleEl.textContent) : null;
+
+        // Image from div.extended-info > div.img-block > div.wrapper > img
+        let image = null;
+        const imgEl = linkEl.querySelector('div.extended-info div.img-block img');
+        if (imgEl) {
+          image = normalizeUrl(imgEl.getAttribute('src'));
+        }
+
+        // Price from div.collapsed-info > div.price-item > div.price
+        let price = null;
+        const priceEl = linkEl.querySelector('div.collapsed-info div.price-item div.price');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        // Shipping/Location from div.collapsed-info > div.second-line
+        let shipping = null;
+        const locationEl = linkEl.querySelector('div.collapsed-info div.second-line');
+        if (locationEl?.textContent) {
+          shipping = cleanText(locationEl.textContent);
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Skelbiu item:', err.message);
       }
     });
 
