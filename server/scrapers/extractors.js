@@ -87,6 +87,7 @@ export function getExtractor(country) {
     md: extract999MdData,
     mt: extractMaltaParkData,
     no: extractFinnData,
+    ru: extractAvitoData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -1840,6 +1841,65 @@ export async function extractMaltaParkData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting MaltaPark item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractAvitoData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const listingCards = document.querySelectorAll('div[data-marker="item"]');
+
+    const pickBestFromSrcset = (srcset) => {
+      if (!srcset) return null;
+      const candidates = srcset
+        .split(',')
+        .map((entry) => entry.trim().split(' ')[0])
+        .filter(Boolean);
+      return candidates.length ? candidates[candidates.length - 1] : null;
+    };
+
+    listingCards.forEach((card) => {
+      try {
+        // Title and URL from h2[itemprop="name"] a
+        const titleLink = card.querySelector('h2[itemprop="name"] a');
+        const href = titleLink?.getAttribute('href');
+        const title = titleLink?.textContent?.trim() || null;
+        const url = href ? (href.startsWith('http') ? href : `https://www.avito.ru${href}`) : null;
+
+        // Image from photo slider
+        const imgEl = card.querySelector('img.photo-slider-image-cD891');
+        const image =
+          pickBestFromSrcset(imgEl?.getAttribute('srcset')) ||
+          pickBestFromSrcset(imgEl?.getAttribute('data-srcset')) ||
+          imgEl?.getAttribute('src') ||
+          imgEl?.getAttribute('data-src') ||
+          null;
+
+        // Price from [data-marker="item-price-value"]
+        let price = null;
+        const priceEl = card.querySelector('[data-marker="item-price-value"]');
+        if (priceEl?.textContent) {
+          const priceText = priceEl.textContent.replace(/\s+/g, ' ').trim();
+          const match = priceText.match(/([\d\s.,]+\s*₽)/i);
+          price = match ? match[1].trim() : priceText;
+        }
+
+        // Location/date info
+        let shipping = null;
+        const dateInfo = card.querySelector('[data-marker="item-date"]');
+        if (dateInfo?.textContent) {
+          shipping = dateInfo.textContent.replace(/\s+/g, ' ').trim();
+        }
+
+        if (title && url) {
+          results.push({ title, url, image, alt: title, price, shipping });
+        }
+      } catch (e) {
+        console.warn('Parse error (Avito.ru):', e.message);
       }
     });
 

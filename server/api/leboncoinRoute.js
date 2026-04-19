@@ -80,7 +80,53 @@ export function setupLeboncoinRoute(app) {
       await page_obj.setExtraHTTPHeaders({
         'accept-language': acceptLanguageByCountry[country] || 'en-US,en;q=0.9',
         'upgrade-insecure-requests': '1',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'accept-encoding': 'gzip, deflate, br',
+        'cache-control': 'no-cache',
+        'pragma': 'no-cache',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+        'sec-fetch-user': '?1',
       });
+
+      if (country === 'ru') {
+        // Avito-specific stealth strategy
+        console.log('🔐 [AVITO] Applying stealth strategy for Avito.ru...');
+        
+        // Use Russian browser user agents for better authenticity
+        const avitoUserAgents = [
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+        ];
+        
+        const randomUA = avitoUserAgents[Math.floor(Math.random() * avitoUserAgents.length)];
+        await page_obj.setUserAgent(randomUA);
+        console.log('🔐 [AVITO] User-Agent set to:', randomUA);
+        
+        // Update headers for Russian locale
+        await page_obj.setExtraHTTPHeaders({
+          'accept-language': 'ru-RU,ru;q=0.9,en;q=0.8',
+          'referer': 'https://www.google.com/',
+        });
+
+        // Warm-up: Visit main page first (like a real user browsing)
+        try {
+          console.log('🔐 [AVITO] Warm-up navigation to main page...');
+          await page_obj.goto('https://www.avito.ru/', {
+            waitUntil: 'domcontentloaded',
+            timeout: 30000,
+          });
+          
+          // Random delay between 2-4 seconds (human-like behavior)
+          const warmupDelay = 2000 + Math.random() * 2000;
+          console.log(`🔐 [AVITO] Warm-up delay: ${Math.round(warmupDelay)}ms`);
+          await new Promise(resolve => setTimeout(resolve, warmupDelay));
+        } catch (warmupErr) {
+          console.warn('🔐 [AVITO] Warm-up failed, continuing anyway:', warmupErr.message);
+        }
+      }
 
       if (country === 'au') {
         await page_obj.setJavaScriptEnabled(true);
@@ -290,10 +336,52 @@ export function setupLeboncoinRoute(app) {
         }
       }
 
-      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, OLX.pt, OLX.ro, Kufar.by, Willhaben, Osta.ee, Huuto, MyMarket and Njuskalo)
-      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi' || country === 'ge' || country === 'hr' || country === 'kz' || country === 'pt' || country === 'ro') {
+      if (country === 'ru') {
+        // Check if Avito blocked the page
+        const avitoBlockCheck = await page_obj.evaluate(() => {
+          const title = (document.title || '').toLowerCase();
+          const bodyText = (document.body?.innerText || '').toLowerCase();
+
+          return {
+            title: document.title,
+            bodyLength: document.body?.innerText?.length || 0,
+            isBlocked:
+              title.includes('доступ ограничен') ||
+              bodyText.includes('доступ ограничен') ||
+              bodyText.includes('проблема с ip') ||
+              bodyText.includes('access denied') ||
+              bodyText.includes('access restricted'),
+            hasItems: document.querySelectorAll('div[data-marker="item"]').length > 0,
+          };
+        });
+
+        console.log('🔐 [AVITO] Block check - Title:', avitoBlockCheck.title, '| Items found:', avitoBlockCheck.hasItems, '| Blocked:', avitoBlockCheck.isBlocked);
+
+        if (avitoBlockCheck.isBlocked) {
+          console.error('🔐 [AVITO] Page is blocked - IP detection or rate limiting triggered');
+          if (browser) {
+            await browser.close();
+            browser = null;
+          }
+
+          return res.status(503).json({
+            success: false,
+            blocked: true,
+            error: 'Avito is blocking automated access (IP detection).',
+            details: 'Avito has detected the scraper and blocked the request. Retry later, use a residential proxy, or increase delays.',
+            country,
+            page: pageNum,
+            searchUrl,
+            source: getSourceName(country),
+          });
+        }
+      }
+
+      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, OLX.pt, OLX.ro, Kufar.by, Willhaben, Osta.ee, Huuto, MyMarket, Avito.ru and Njuskalo)
+      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi' || country === 'ge' || country === 'hr' || country === 'kz' || country === 'pt' || country === 'ro' || country === 'ru') {
         console.log(`📜 Scrolling to load lazy-loaded content for ${config.name}...`);
-        await page_obj.evaluate(async () => {
+        const isAvito = country === 'ru';
+        await page_obj.evaluate(async (avitoMode) => {
           const forceLazyImages = () => {
             const imgs = Array.from(document.querySelectorAll('img'));
             imgs.forEach((img) => {
@@ -318,10 +406,12 @@ export function setupLeboncoinRoute(app) {
           let lastHeight = 0;
           let lastScrollY = -1;
           let stablePasses = 0;
-          const maxPasses = 20;
-          const scrollDelayMs = 30;
-          const stableThreshold = 3;
-          const scrollStep = Math.floor(window.innerHeight / 2);
+          // Avito-specific aggressive settings
+          const maxPasses = avitoMode ? 500 : 50;
+          const scrollDelayMs = avitoMode ? 500 : 30;
+          const stableThreshold = avitoMode ? 10 : 3;
+          const scroll_nb = avitoMode ? 4 : 2;
+          const scrollStep = Math.floor(window.innerHeight / scroll_nb);
 
           for (let i = 0; i < maxPasses && stablePasses < stableThreshold; i += 1) {
             window.scrollBy(0, scrollStep);
@@ -341,10 +431,11 @@ export function setupLeboncoinRoute(app) {
 
           // Return to top once all cards/images are hydrated.
           window.scrollTo(0, 0);
-        });
+        }, isAvito);
 
         // Give browser time to decode images after the forced lazy-load pass.
-        await new Promise(resolve => setTimeout(resolve, 3250));
+        const decodeDelay = isAvito ? 5000 : 3250;
+        await new Promise(resolve => setTimeout(resolve, decodeDelay));
       }
 
       if (country === 'ee') {

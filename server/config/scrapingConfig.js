@@ -65,6 +65,7 @@ export function getSelector(country) {
     lv: 'tr[id^="tr_"]',
     mk: 'div.new.row.row-listing',
     lt: 'a.js-cfuser-link.standard-list-item, a.standard-list-item',
+    ru: 'div[data-marker="item"]',
   };
   return selectors[country] || selectors.fr;
 }
@@ -265,6 +266,11 @@ const searchUrlByCountry = {
   mt: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/search/?c=s1&search=${term}&page=${page}`;
+  },
+
+  ru: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/all/bytovaya_elektronika?p=${page}&q=${term}`;
   },
 };
 
