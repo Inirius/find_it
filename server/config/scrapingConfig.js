@@ -55,6 +55,7 @@ export function getSelector(country) {
     es: 'a[href*="/item/"]',
     fi: 'a[href*="/kohteet/"]',
     ge: 'a[href*="/pr/"] article[data-testid="product-card"], article[data-testid="product-card"]',
+    no: 'article.sf-search-ad, article[class*="sf-search-ad"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
     md: 'a.styles_advert__photo__link__SnL_t[href^="/ro/"]',
@@ -216,6 +217,11 @@ const searchUrlByCountry = {
     const term = normalize.plus(query);
     const p = page > 1 ? `p/${page}/` : '';
     return `https://${domain}/q/${term}/${p}`;
+  },
+
+  no: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/recommerce/forsale/search?page=${page}&q=${term}`;
   },
 
   pl: ({ domain, query, page }) => {

@@ -84,6 +84,7 @@ export function getExtractor(country) {
     mk: extractPazar3Data,
     md: extract999MdData,
     mt: extractMaltaParkData,
+    no: extractFinnData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -1723,6 +1724,75 @@ export async function extractMaltaParkData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting MaltaPark item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractFinnData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('article.sf-search-ad, article[class*="sf-search-ad"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.finn.no${value}`;
+      return value;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const linkEl =
+          card.querySelector('a.sf-search-ad-link[href*="/recommerce/forsale/item/"]') ||
+          card.querySelector('h2 a[href*="/recommerce/forsale/item/"]') ||
+          card.querySelector('a[href*="/recommerce/forsale/item/"]');
+
+        const href = linkEl?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const title = cleanText(linkEl?.textContent) || null;
+
+        const activeImage = card.querySelector('img.sf-ad-carousel-desktop-item--active');
+        const imgEl = activeImage || card.querySelector('img.sf-ad-carousel-desktop-item') || card.querySelector('img');
+        const image =
+          normalizeUrl(imgEl?.getAttribute('src')) ||
+          normalizeUrl(imgEl?.getAttribute('data-src')) ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('div.font-bold span') || card.querySelector('span');
+        if (priceEl?.textContent) {
+          const priceText = cleanText(priceEl.textContent);
+          const match = priceText.match(/([\d\s.,]+\s*kr\.?)/i);
+          price = match ? cleanText(match[1]) : null;
+        }
+
+        let shipping = null;
+        const metaSpans = Array.from(card.querySelectorAll('.text-xs.s-text-subtle span'))
+          .map((el) => cleanText(el.textContent))
+          .filter(Boolean);
+        if (metaSpans.length > 0) {
+          shipping = metaSpans.join(' • ');
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Finn item:', err.message);
       }
     });
 
