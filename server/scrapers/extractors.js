@@ -83,6 +83,7 @@ export function getExtractor(country) {
     lv: extractSsLvData,
     mk: extractPazar3Data,
     md: extract999MdData,
+    mt: extractMaltaParkData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -1600,7 +1601,7 @@ export async function extractPazar3Data(page_obj) {
 export async function extract999MdData(page_obj) {
   return await page_obj.evaluate(() => {
     const results = [];
-    const cards = document.querySelectorAll('a.styles_advert__photo__link__SnL_t, a[href^="/ro/"]');
+    const cards = document.querySelectorAll('a.styles_advert__photo__link__SnL_t[href^="/ro/"]');
 
     const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
 
@@ -1621,6 +1622,20 @@ export async function extract999MdData(page_obj) {
     cards.forEach((card) => {
       try {
         const href = card.getAttribute('href');
+        if (!href || !/^\/ro\/\d+/.test(href)) {
+          return;
+        }
+
+        // Skip sponsored/boosted cards (slick carousel + booster markers)
+        const isSponsored = Boolean(
+          card.querySelector(
+            '.styles_animation__01Hnw, .slick-slider, .icon-rd-booster, [data-testid="add-booster-ad-favorites"]'
+          )
+        );
+        if (isSponsored) {
+          return;
+        }
+
         const url = normalizeUrl(href);
 
         const titleEl = card.querySelector('h4');
@@ -1653,6 +1668,61 @@ export async function extract999MdData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting 999.md item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractMaltaParkData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div.item.e3.e2, div.item[data-itemid]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://maltapark.com${value}`;
+      return value;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const titleLink =
+          card.querySelector('.content a.header[href]') ||
+          card.querySelector('a.header[href]') ||
+          card.querySelector('a[href*="/item/details/"]');
+
+        const href = titleLink?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const title = cleanText(titleLink?.textContent) || null;
+
+        const imgEl = card.querySelector('.image a.imagelink img') || card.querySelector('img');
+        const image = normalizeUrl(imgEl?.getAttribute('src')) || normalizeUrl(imgEl?.getAttribute('data-src')) || null;
+
+        let price = null;
+        const priceEl = card.querySelector('.meta .price span') || card.querySelector('.price span') || card.querySelector('.price');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping: null,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting MaltaPark item:', err.message);
       }
     });
 

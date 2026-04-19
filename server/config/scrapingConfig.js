@@ -18,7 +18,7 @@ export function getItemsPerPage(country) {
     is: 50, it: 30, // Bland, Subito
     kz: 50, lt: 24, // OLX, Skelbiu
     lv: 30, mk: 50, // SS.lv, Pazar3
-    md: 50, mt: 50, // 999.md, MaltaPark
+    md: 78, mt: 52, // 999.md, MaltaPark
     nl: 50, no: 50, // Marktplaats, Finn
     pl: 50, pt: 50, // OLX, OLX
     ro: 50, ru: 50, // OLX, Avito
@@ -57,7 +57,8 @@ export function getSelector(country) {
     ge: 'a[href*="/pr/"] article[data-testid="product-card"], article[data-testid="product-card"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
-    md: 'a.styles_advert__photo__link__SnL_t, a[href^="/ro/"]',
+    md: 'a.styles_advert__photo__link__SnL_t[href^="/ro/"]',
+    mt: 'div.item.e3.e2, div.item[data-itemid]',
     lv: 'tr[id^="tr_"]',
     mk: 'div.new.row.row-listing',
     lt: 'a.js-cfuser-link.standard-list-item, a.standard-list-item',
@@ -241,6 +242,11 @@ const searchUrlByCountry = {
   md: ({ domain, query, page }) => {
     const term = normalize.encoded(query);
     return `https://${domain}/ro/search?query=${term}&page=${page}`;
+  },
+
+  mt: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/search/?c=s1&search=${term}&page=${page}`;
   },
 };
 
