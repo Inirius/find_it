@@ -22,7 +22,7 @@ export function getItemsPerPage(country) {
     nl: 50, no: 54, // Marktplaats, Finn
     pl: 52, pt: 50, // OLX, OLX
     ro: 52, ru: 50, // OLX, Avito
-    rs: 30, se: 50, // Kupujem Prodajem, Tradera
+    rs: 30, se: 80, // Kupujem Prodajem, Tradera
     si: 50, sk: 50, // Bolha, Bazos
     tr: 50, ua: 50, // LetGo, OLX
     xk: 50, // Merrjep
@@ -94,6 +94,7 @@ export function getSelector(country) {
     fi: 'a[href*="/kohteet/"]',
     ge: 'a[href*="/pr/"] article[data-testid="product-card"], article[data-testid="product-card"]',
     no: 'article.sf-search-ad, article[class*="sf-search-ad"]',
+    se: 'div[id^="item-card-"][data-item-loaded="true"], div[id^="item-card-"][data-item-type], .item-card-module-scss-module__IIyH5q__itemCard',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
     pt: 'div[data-cy="l-card"], div[data-testid="l-card"]',
@@ -309,6 +310,11 @@ const searchUrlByCountry = {
   rs: ({ domain, query, page }) => {
     const term = normalize.encoded(query);
     return `https://${domain}/pretraga?keywords=${term}&page=${page}`;
+  },
+
+  se: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/search?q=${term}&paging=${page}`;
   },
 
   ru: ({ domain, query, page }) => {

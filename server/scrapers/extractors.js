@@ -64,6 +64,7 @@ export function getExtractor(country) {
     gr: extractVendoraData,
     hr: extractNjuskaloData,
     rs: extractKupujemProdajemData,
+    se: extractTraderaData,
     be: extract2ememainData,
     at: extractWillhabenData,
     es: extractWallapopData,
@@ -1269,6 +1270,7 @@ export async function extractSubitoData(page_obj) {
         const linkEl = card.querySelector('a.index-module_link__onvFH[href]') || card.querySelector('a[href*="subito.it/"]') || card.querySelector('a[href]');
         const href = linkEl?.getAttribute('href');
         const url = normalizeUrl(href);
+        const imageScope = linkEl || card;
 
         const titleEl = card.querySelector('h3.index-module_subject__m4Sp9') || card.querySelector('h3') || card.querySelector('[class*="subject"]');
         const title = cleanText(titleEl?.textContent || titleEl?.getAttribute('title')) || null;
@@ -1570,6 +1572,113 @@ export async function extractKupujemProdajemData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting KupujemProdajem item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractTraderaData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div[id^="item-card-"][data-item-loaded="true"], div[id^="item-card-"][data-item-type], .item-card-module-scss-module__IIyH5q__itemCard');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.tradera.com${value}`;
+      return value;
+    };
+
+    const pickBestFromSrcset = (srcset) => {
+      if (!srcset) return null;
+      const candidates = srcset
+        .split(',')
+        .map((entry) => entry.trim().split(' ')[0])
+        .filter(Boolean);
+      return candidates.length ? candidates[candidates.length - 1] : null;
+    };
+
+    const pickFromBgImage = (styleValue) => {
+      if (!styleValue) return null;
+      const match = styleValue.match(/url\(["']?([^"')]+)["']?\)/i);
+      return match?.[1] || null;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const itemLinks = Array.from(card.querySelectorAll('a[href*="/item/"]'));
+        const linkEl =
+          itemLinks.find((el) => el.getAttribute('title')) ||
+          itemLinks.find((el) => cleanText(el.textContent)) ||
+          itemLinks[0] ||
+          null;
+
+        const href =
+          linkEl?.getAttribute('href') ||
+          itemLinks[0]?.getAttribute('href') ||
+          null;
+        const url = normalizeUrl(href);
+        const imageScope = linkEl || card;
+
+        const title =
+          cleanText(linkEl?.getAttribute('title')) ||
+          cleanText(linkEl?.getAttribute('aria-label')) ||
+          cleanText(linkEl?.textContent) ||
+          cleanText(card.querySelector('a[href*="/item/"][aria-label]')?.getAttribute('aria-label')) ||
+          cleanText(card.querySelector('a[href*="/item/"]')?.textContent) ||
+          null;
+
+        const sourceEl =
+          imageScope.querySelector('picture source[srcset]') ||
+          card.querySelector('picture source[srcset]');
+
+        const imgEl =
+          imageScope.querySelector('picture img') ||
+          imageScope.querySelector('img') ||
+          card.querySelector('picture img') ||
+          card.querySelector('img');
+
+        const secondaryImageDiv =
+          imageScope.querySelector('[class*="secondaryImage"][style]') ||
+          card.querySelector('[class*="secondaryImage"][style]') ||
+          card.querySelector('div[style*="background-image"]');
+
+        const image =
+          normalizeUrl(pickBestFromSrcset(sourceEl?.getAttribute('srcset'))) ||
+          normalizeUrl(pickBestFromSrcset(imgEl?.getAttribute('srcset'))) ||
+          normalizeUrl(imgEl?.getAttribute('data-src')) ||
+          normalizeUrl(imgEl?.getAttribute('src')) ||
+          normalizeUrl(pickFromBgImage(secondaryImageDiv?.getAttribute('style'))) ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('[data-testid="price"]');
+        if (priceEl?.textContent) {
+          const priceText = cleanText(priceEl.textContent);
+          const match = priceText.match(/([\d\s.,]+\s*kr)/i);
+          price = match ? cleanText(match[1]) : priceText;
+        }
+
+        const listingType = cleanText(card.querySelector('[data-testid="fixedPriceLabel"]')?.textContent);
+        const shipping = listingType || null;
+
+        if (url) {
+          results.push({
+            title: title || url,
+            url,
+            image,
+            alt: title || url,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Tradera item:', err.message);
       }
     });
 

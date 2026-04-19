@@ -4,6 +4,8 @@ import EbayCard from './components/EbayCard'
 import LeboncoinCard from './components/LeboncoinCard'
 import { hasEbaySupportBrowse, hasVintedSupport } from '../shared/countrySupport.js'
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || 'http://localhost:3001';
+
 type Item = {
   title: string | null;
   url: string | null;
@@ -104,15 +106,15 @@ function App() {
       const sourceOrder: string[] = [];
       
       if (sources.ebay && hasEbaySupportBrowse(country)) {
-        fetchPromises.push(fetch(`http://localhost:3002/api/ebay/browse?query=${encodeURIComponent(q)}&page=${pEbay}&country=${country}`));
+        fetchPromises.push(fetch(`${API_BASE_URL}/api/ebay/browse?query=${encodeURIComponent(q)}&page=${pEbay}&country=${country}`));
         sourceOrder.push('ebay');
       }
       if (sources.leboncoin) {
-        fetchPromises.push(fetch(`http://localhost:3002/api/leboncoin/search?query=${encodeURIComponent(q)}&page=${pLbc}&country=${country}`));
+        fetchPromises.push(fetch(`${API_BASE_URL}/api/leboncoin/search?query=${encodeURIComponent(q)}&page=${pLbc}&country=${country}`));
         sourceOrder.push('leboncoin');
       }
       if (sources.vinted && hasVintedSupport(country)) {
-        fetchPromises.push(fetch(`http://localhost:3002/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}&country=${country}`));
+        fetchPromises.push(fetch(`${API_BASE_URL}/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}&country=${country}`));
         sourceOrder.push('vinted');
       }
       
@@ -149,7 +151,19 @@ function App() {
       if (leboncoinRes && leboncoinRes.ok) {
         leboncoinData = await leboncoinRes.json();
         if (leboncoinData.success) {
-          setLeboncoinItems(leboncoinData.items || []);
+          const rawItems: Item[] = leboncoinData.items || [];
+          const normalizedItems = country === 'se'
+            ? rawItems.map((item) => {
+                const imageUrl = item.image || '';
+                const shouldProxy = /^https?:\/\/img\.tradera\.net\//i.test(imageUrl);
+                return {
+                  ...item,
+                  image: shouldProxy ? `${API_BASE_URL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}` : item.image,
+                };
+              })
+            : rawItems;
+
+          setLeboncoinItems(normalizedItems);
         } else {
           setLeboncoinItems([]);
         }
@@ -178,7 +192,7 @@ function App() {
         (!sources.vinted || !vintedData?.success);
       
       if (selectedSourcesFailed) {
-        setError('Erreur lors de la recherche - assurez-vous que le serveur backend fonctionne sur le port 3002');
+        setError(`Erreur lors de la recherche - assurez-vous que le serveur backend fonctionne (${API_BASE_URL})`);
       }
     } catch (err: any) {
       setEbayItems([]);
@@ -186,7 +200,7 @@ function App() {
       setVintedItems([]);
       setTotalEbay(0);
       setTotalVinted(0);
-      setError(String(err || 'Fetch error - ensure backend is running on port 3002'));
+      setError(String(err || `Fetch error - ensure backend is running (${API_BASE_URL})`));
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,7 @@
 // LeBonCoin scraping API route
 
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import {
@@ -156,6 +158,66 @@ export function setupLeboncoinRoute(app) {
         await page_obj.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       }
 
+      if (country === 'se') {
+        // Tradera often shows a consent management panel that can block interactions/render timing.
+        try {
+          const cookieAction = await page_obj.evaluate(() => {
+            const clickIfVisible = (selector) => {
+              const el = document.querySelector(selector);
+              if (!el) return false;
+              const style = window.getComputedStyle(el);
+              const hidden = style.display === 'none' || style.visibility === 'hidden';
+              if (hidden) return false;
+              el.click();
+              return true;
+            };
+
+            const textMatchers = ['acceptera', 'godkänn', 'godkann', 'accept all', 'acceptera alla'];
+
+            const clickByText = () => {
+              const candidates = Array.from(document.querySelectorAll('button, a, [role="button"], input[type="button"]'));
+              for (const el of candidates) {
+                const label = (el.textContent || el.getAttribute('aria-label') || '').toLowerCase().trim();
+                if (!label) continue;
+                if (textMatchers.some((m) => label.includes(m))) {
+                  el.click();
+                  return true;
+                }
+              }
+              return false;
+            };
+
+            const selectorCandidates = [
+              '#onetrust-accept-btn-handler',
+              '[id*="accept"][id*="cookie"]',
+              '[data-testid*="accept"]',
+              '[aria-label*="accept" i]',
+              '[aria-label*="acceptera" i]',
+              'button[class*="accept" i]',
+            ];
+
+            for (const selector of selectorCandidates) {
+              if (clickIfVisible(selector)) {
+                return `clicked:${selector}`;
+              }
+            }
+
+            if (clickByText()) {
+              return 'clicked:text-match';
+            }
+
+            return 'none';
+          });
+
+          console.log(`🪵 [TRADERA] Cookie panel action: ${cookieAction}`);
+          if (cookieAction !== 'none') {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+          }
+        } catch (cookieErr) {
+          console.warn('🪵 [TRADERA] Cookie handling failed, continuing anyway:', cookieErr.message);
+        }
+      }
+
       if (country === 'ie') {
         const detectIeChallenge = async () => {
           return page_obj.evaluate(() => {
@@ -252,6 +314,11 @@ export function setupLeboncoinRoute(app) {
         console.log(`🪵 [${config.name.toUpperCase()}] Search URL:`, searchUrl);
       }
 
+      if (country === 'se') {
+        console.log(`🪵 [${config.name.toUpperCase()}] Waiting for selector:`, selector);
+        console.log(`🪵 [${config.name.toUpperCase()}] Search URL:`, searchUrl);
+      }
+
       try {
         await page_obj.waitForSelector(selector, { timeout: 25000 });
       } catch (waitErr) {
@@ -317,6 +384,38 @@ export function setupLeboncoinRoute(app) {
             };
           });
           console.log('🪵 [DONEDEAL] Selector timeout debug:', selectorDebug);
+        }
+
+        if (country === 'se') {
+          const selectorDebug = await page_obj.evaluate(() => {
+            const selectors = [
+              'div[id^="item-card-"][data-item-loaded="true"]',
+              'div[id^="item-card-"][data-item-type]',
+              '.item-card-module-scss-module__IIyH5q__itemCard',
+              'a[href*="/item/"]',
+              '[data-testid="price"]',
+              'picture',
+            ];
+
+            const counts = {};
+            selectors.forEach((s) => {
+              counts[s] = document.querySelectorAll(s).length;
+            });
+
+            const bodyText = (document.body?.innerText || '').toLowerCase();
+            return {
+              href: window.location.href,
+              title: document.title,
+              readyState: document.readyState,
+              counts,
+              bodyLength: document.body?.innerText?.length || 0,
+              hasCaptchaWord: bodyText.includes('captcha'),
+              hasRobotWord: bodyText.includes('robot'),
+              hasCloudflareWord: bodyText.includes('cloudflare'),
+              hasAccessDeniedWord: bodyText.includes('access denied'),
+            };
+          });
+          console.log('🪵 [TRADERA] Selector timeout debug:', selectorDebug);
         }
 
         await new Promise(resolve => setTimeout(resolve, 3000));
@@ -559,6 +658,18 @@ export function setupLeboncoinRoute(app) {
         console.log(`🪵 [${config.name.toUpperCase()}] Pre-extract debug:`, preExtractDebug);
       }
 
+      if (country === 'se') {
+        const preExtractDebug = await page_obj.evaluate(() => ({
+          cards: document.querySelectorAll('div[id^="item-card-"][data-item-loaded="true"], div[id^="item-card-"][data-item-type], .item-card-module-scss-module__IIyH5q__itemCard').length,
+          links: document.querySelectorAll('a[href*="/item/"]').length,
+          prices: document.querySelectorAll('[data-testid="price"]').length,
+          pictures: document.querySelectorAll('picture').length,
+          href: window.location.href,
+          title: document.title,
+        }));
+        console.log(`🪵 [${config.name.toUpperCase()}] Pre-extract debug:`, preExtractDebug);
+      }
+
       let pageData = await extractor(page_obj);
 
       if (country === 'au') {
@@ -569,6 +680,75 @@ export function setupLeboncoinRoute(app) {
             url: pageData[0]?.url,
             price: pageData[0]?.price,
           });
+        }
+      }
+
+      if (country === 'se') {
+        console.log(`🪵 [${config.name.toUpperCase()}] Extracted item count:`, pageData.length);
+        if (pageData.length > 0) {
+          console.log(`🪵 [${config.name.toUpperCase()}] First extracted item preview:`, {
+            title: pageData[0]?.title,
+            url: pageData[0]?.url,
+            image: pageData[0]?.image,
+            price: pageData[0]?.price,
+          });
+        } else {
+          try {
+            const dumpData = await page_obj.evaluate(() => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const buttons = Array.from(document.querySelectorAll('button, a, [role="button"], input[type="button"]'))
+                .map((el) => ({
+                  tag: el.tagName,
+                  id: el.id || null,
+                  className: el.className || null,
+                  ariaLabel: el.getAttribute('aria-label') || null,
+                  text: normalize(el.textContent).slice(0, 180) || null,
+                }))
+                .filter((item) => item.ariaLabel || item.text)
+                .slice(0, 400);
+
+              return {
+                href: window.location.href,
+                title: document.title,
+                bodyLength: document.body?.innerText?.length || 0,
+                cardCount: document.querySelectorAll('div[id^="item-card-"][data-item-loaded="true"], div[id^="item-card-"][data-item-type], .item-card-module-scss-module__IIyH5q__itemCard').length,
+                html: document.documentElement?.outerHTML || '',
+                buttons,
+              };
+            });
+
+            const debugDir = path.join(process.cwd(), 'debug', 'tradera-dumps');
+            await fs.mkdir(debugDir, { recursive: true });
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const baseName = `tradera-se-q-${String(query).replace(/\s+/g, '_')}-p-${pageNum}-${stamp}`;
+            const htmlPath = path.join(debugDir, `${baseName}.html`);
+            const metaPath = path.join(debugDir, `${baseName}.json`);
+
+            await fs.writeFile(htmlPath, dumpData.html, 'utf8');
+            await fs.writeFile(
+              metaPath,
+              JSON.stringify(
+                {
+                  query,
+                  page: pageNum,
+                  selector,
+                  url: dumpData.href,
+                  title: dumpData.title,
+                  bodyLength: dumpData.bodyLength,
+                  cardCount: dumpData.cardCount,
+                  buttons: dumpData.buttons,
+                },
+                null,
+                2
+              ),
+              'utf8'
+            );
+
+            console.log(`🪵 [TRADERA] Debug HTML dump saved: ${htmlPath}`);
+            console.log(`🪵 [TRADERA] Debug metadata saved: ${metaPath}`);
+          } catch (dumpErr) {
+            console.warn('🪵 [TRADERA] Failed to save debug dump:', dumpErr.message);
+          }
         }
       }
 

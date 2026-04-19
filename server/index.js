@@ -50,6 +50,51 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Proxy image endpoint to avoid client-side hotlink/display issues on some marketplaces.
+app.get('/api/image-proxy', async (req, res) => {
+  try {
+    const rawUrl = String(req.query.url || '').trim();
+    if (!rawUrl) {
+      return res.status(400).json({ error: 'Missing url query parameter' });
+    }
+
+    let imageUrl;
+    try {
+      imageUrl = new URL(rawUrl);
+    } catch {
+      return res.status(400).json({ error: 'Invalid image url' });
+    }
+
+    const allowedHosts = new Set(['img.tradera.net']);
+    if (!allowedHosts.has(imageUrl.hostname)) {
+      return res.status(403).json({ error: 'Image host not allowed' });
+    }
+
+    const response = await fetch(imageUrl.toString(), {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+        Referer: 'https://www.tradera.com/',
+        Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: `Failed to fetch image (${response.status})` });
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error('Image proxy error:', error.message);
+    return res.status(500).json({ error: 'Image proxy failed' });
+  }
+});
+
 // Root endpoint used as a public, verifiable landing page
 app.get('/', (req, res) => {
   res.type('html').send(`<!doctype html>
