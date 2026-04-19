@@ -82,6 +82,7 @@ export function getExtractor(country) {
     lt: extractSkelbIUData,
     lv: extractSsLvData,
     mk: extractPazar3Data,
+    md: extract999MdData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -1589,6 +1590,69 @@ export async function extractPazar3Data(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Pazar3 item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extract999MdData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('a.styles_advert__photo__link__SnL_t, a[href^="/ro/"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://999.md${value}`;
+      return value;
+    };
+
+    const pickImageFromStyle = (styleText) => {
+      if (!styleText) return null;
+      const match = styleText.match(/url\(["']?(.*?)["']?\)/i);
+      return match?.[1] || null;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const href = card.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const titleEl = card.querySelector('h4');
+        const title = cleanText(titleEl?.textContent) || null;
+
+        const imageStyleEl = card.querySelector('.styles_image__EyfwD[style]');
+        const imageFromStyle = pickImageFromStyle(imageStyleEl?.getAttribute('style'));
+        const imgEl = card.querySelector('img');
+        const image =
+          normalizeUrl(imageFromStyle) ||
+          normalizeUrl(imgEl?.getAttribute('data-src')) ||
+          normalizeUrl(imgEl?.getAttribute('src')) ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('.styles_price__text__VPLPL');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping: null,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting 999.md item:', err.message);
       }
     });
 

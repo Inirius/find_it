@@ -57,6 +57,7 @@ export function getSelector(country) {
     ge: 'a[href*="/pr/"] article[data-testid="product-card"], article[data-testid="product-card"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
+    md: 'a.styles_advert__photo__link__SnL_t, a[href^="/ro/"]',
     lv: 'tr[id^="tr_"]',
     mk: 'div.new.row.row-listing',
     lt: 'a.js-cfuser-link.standard-list-item, a.standard-list-item',
@@ -235,6 +236,11 @@ const searchUrlByCountry = {
   mk: ({ domain, query, page }) => {
     const term = normalize.dash(query);
     return `https://${domain}/ads/q-${term}?Page=${page}`;
+  },
+
+  md: ({ domain, query, page }) => {
+    const term = normalize.encoded(query);
+    return `https://${domain}/ro/search?query=${term}&page=${page}`;
   },
 };
 
