@@ -31,6 +31,23 @@ const getCountryName = (country: string): string => {
   return names[country] || 'France';
 };
 
+const getCountryFlag = (country: string): string => {
+  const flags: { [key: string]: string } = {
+    al: '🇦🇱', am: '🇦🇲', au: '🇦🇺', at: '🇦🇹',
+    ba: '🇧🇦', be: '🇧🇪', bg: '🇧🇬', by: '🇧🇾',
+    cy: '🇨🇾', cz: '🇨🇿', de: '🇩🇪', dk: '🇩🇰',
+    ee: '🇪🇪', es: '🇪🇸', fi: '🇫🇮', fr: '🇫🇷',
+    gb: '🇬🇧', ge: '🇬🇪', gr: '🇬🇷', hr: '🇭🇷',
+    hu: '🇭🇺', ie: '🇮🇪', is: '🇮🇸', it: '🇮🇹',
+    kz: '🇰🇿', lt: '🇱🇹', lv: '🇱🇻', mk: '🇲🇰',
+    md: '🇲🇩', mt: '🇲🇹', nl: '🇳🇱', no: '🇳🇴',
+    pl: '🇵🇱', pt: '🇵🇹', ro: '🇷🇴', ru: '🇷🇺',
+    rs: '🇷🇸', se: '🇸🇪', si: '🇸🇮', sk: '🇸🇰',
+    tr: '🇹🇷', ua: '🇺🇦', xk: '🇽🇰',
+  };
+  return flags[country] || '🇫🇷';
+};
+
 const getLeboncoinName = (country: string): string => {
   const names: { [key: string]: string } = {
     al: 'Merrjep', am: 'List.am', au: 'Gumtree', at: 'Willhaben',
@@ -208,6 +225,29 @@ function App() {
       >
         ☰ Filtres
       </button>
+
+      {/* Country flag and name badge (top right) */}
+      <div
+        style={{
+          position: 'fixed',
+          top: '16px',
+          right: '16px',
+          zIndex: 1001,
+          padding: '8px 12px',
+          backgroundColor: '#242f3fff',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}
+      >
+        <span style={{ fontSize: '20px' }}>{getCountryFlag(country)}</span>
+        <span>{getCountryName(country)}</span>
+      </div>
 
       {/* Sidebar menu */}
       <div
