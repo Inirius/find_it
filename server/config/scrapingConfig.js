@@ -21,7 +21,7 @@ export function getItemsPerPage(country) {
     md: 78, mt: 52, // 999.md, MaltaPark
     nl: 50, no: 54, // Marktplaats, Finn
     pl: 52, pt: 50, // OLX, OLX
-    ro: 50, ru: 50, // OLX, Avito
+    ro: 52, ru: 50, // OLX, Avito
     rs: 50, se: 50, // Kupujem Prodajem, Tradera
     si: 50, sk: 50, // Bolha, Bazos
     tr: 50, ua: 50, // LetGo, OLX
@@ -59,6 +59,7 @@ export function getSelector(country) {
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
     pt: 'div[data-cy="l-card"], div[data-testid="l-card"]',
+    ro: 'div[data-cy="l-card"], div[data-testid="l-card"]',
     md: 'a.styles_advert__photo__link__SnL_t[href^="/ro/"]',
     mt: 'div.item.e3.e2, div.item[data-itemid]',
     lv: 'tr[id^="tr_"]',
@@ -234,6 +235,11 @@ const searchUrlByCountry = {
   pt: ({ domain, query, page }) => {
     const term = normalize.dash(query);
     return `https://${domain}/ads/q-${term}/?page=${page}`;
+  },
+
+  ro: ({ domain, query, page }) => {
+    const term = normalize.dash(query);
+    return `https://${domain}/oferte/q-${term}/?page=${page}`;
   },
 
   lt: ({ domain, query, page }) => {

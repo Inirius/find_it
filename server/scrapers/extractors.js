@@ -69,6 +69,7 @@ export function getExtractor(country) {
     nl: extract2ememainData,
     pl: extractOlxData,
     pt: extractOlxPtData,
+    ro: extractOlxRoData,
     au: extractGumtreeData,
     gb: extractGumtreeUkData,
     by: extractKufarData,
@@ -355,6 +356,63 @@ export async function extractOlxPtData(page_obj) {
         }
       } catch (e) {
         console.warn('Parse error (OLX.pt):', e.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractOlxRoData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const listingCards = document.querySelectorAll('div[data-cy="l-card"], div[data-testid="l-card"]');
+
+    const pickBestFromSrcset = (srcset) => {
+      if (!srcset) return null;
+      const candidates = srcset
+        .split(',')
+        .map((entry) => entry.trim().split(' ')[0])
+        .filter(Boolean);
+      return candidates.length ? candidates[candidates.length - 1] : null;
+    };
+
+    listingCards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a[href*="/d/oferta/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = href ? (href.startsWith('http') ? href : `https://www.olx.ro${href}`) : null;
+
+        const titleEl = card.querySelector('[data-testid="ad-card-title"] h4') || card.querySelector('h4');
+        const title = titleEl?.textContent?.trim() || null;
+
+        const imgEl = card.querySelector('img');
+        const image =
+          pickBestFromSrcset(imgEl?.getAttribute('srcset')) ||
+          pickBestFromSrcset(imgEl?.getAttribute('data-srcset')) ||
+          imgEl?.getAttribute('src') ||
+          imgEl?.getAttribute('data-src') ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('[data-testid="ad-price"]');
+        if (priceEl?.textContent) {
+          const priceText = priceEl.textContent.replace(/\s+/g, ' ').trim();
+          const match = priceText.match(/([\d\s.,]+\s*lei)/i);
+          price = match ? match[1].trim() : priceText;
+        }
+
+        let shipping = null;
+        const locationDateEl = card.querySelector('[data-testid="location-date"]');
+        if (locationDateEl?.textContent) {
+          shipping = locationDateEl.textContent.replace(/\s+/g, ' ').trim();
+        }
+
+        if (title && url) {
+          results.push({ title, url, image, alt: title, price, shipping });
+        }
+      } catch (e) {
+        console.warn('Parse error (OLX.ro):', e.message);
       }
     });
 

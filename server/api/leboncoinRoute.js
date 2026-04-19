@@ -290,8 +290,8 @@ export function setupLeboncoinRoute(app) {
         }
       }
 
-      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, OLX.pt, Kufar.by, Willhaben, Osta.ee, Huuto, MyMarket and Njuskalo)
-      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi' || country === 'ge' || country === 'hr' || country === 'kz' || country === 'pt') {
+      // Scroll to load lazy-loaded images (especially for OLX.pl, OLX.bg, OLX.pt, OLX.ro, Kufar.by, Willhaben, Osta.ee, Huuto, MyMarket and Njuskalo)
+      if (country === 'pl' || country === 'at' || country === 'bg' || country === 'ee' || country === 'fi' || country === 'ge' || country === 'hr' || country === 'kz' || country === 'pt' || country === 'ro') {
         console.log(`📜 Scrolling to load lazy-loaded content for ${config.name}...`);
         await page_obj.evaluate(async () => {
           const forceLazyImages = () => {
