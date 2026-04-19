@@ -22,7 +22,7 @@ export function getItemsPerPage(country) {
     nl: 50, no: 54, // Marktplaats, Finn
     pl: 52, pt: 50, // OLX, OLX
     ro: 52, ru: 50, // OLX, Avito
-    rs: 50, se: 50, // Kupujem Prodajem, Tradera
+    rs: 30, se: 50, // Kupujem Prodajem, Tradera
     si: 50, sk: 50, // Bolha, Bazos
     tr: 50, ua: 50, // LetGo, OLX
     xk: 50, // Merrjep
@@ -77,6 +77,7 @@ export function getSelector(country) {
     cy: 'div.grid-items-col a.card-product, a.card.vCard.card-product',
     gr: 'div.grid-items-col a.card-product, a.card.vCard.card-product',
     hr: 'li.EntityList-item article.entity-body, li.EntityList-item a.entity-title, li.EntityList-item a.link',
+    rs: 'section.AdItem_adOuterHolder__hb5N_, section[id][data-scrolled]',
     hu: '[data-testid="ad-card-general"]',
     it: 'article.index-module_card__dW0sY, article:has(a[href*="subito.it/videogiochi/"]), article:has(a[href*="subito.it/"])',
     is: 'div.classifiedentry, div[data-page], div.searchList',
@@ -303,6 +304,11 @@ const searchUrlByCountry = {
   mt: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/search/?c=s1&search=${term}&page=${page}`;
+  },
+
+  rs: ({ domain, query, page }) => {
+    const term = normalize.encoded(query);
+    return `https://${domain}/pretraga?keywords=${term}&page=${page}`;
   },
 
   ru: ({ domain, query, page }) => {
