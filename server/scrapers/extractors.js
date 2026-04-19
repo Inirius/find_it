@@ -80,6 +80,7 @@ export function getExtractor(country) {
     kz: extractOlxKzData,
     ie: extractDoneDealData,
     lt: extractSkelbIUData,
+    lv: extractSsLvData,
   };
   return extractors[country] || extractors.fr;
 }
@@ -1446,6 +1447,78 @@ export async function extractSkelbIUData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Skelbiu item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractSsLvData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const rows = document.querySelectorAll('tr[id^="tr_"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.ss.lv${value}`;
+      return value;
+    };
+
+    rows.forEach((row) => {
+      try {
+        // Get all <td> elements (0: checkbox, 1: image, 2: title/desc, 3: price)
+        const tds = row.querySelectorAll('td');
+        if (tds.length < 4) return;
+
+        // Title from a.am within div.d1 (second <a> from title cell)
+        const titleCell = tds[2];
+        const titleEl = titleCell?.querySelector('div.d1 a.am');
+        const title = titleEl ? cleanText(titleEl.textContent) : null;
+
+        // URL from a.am href
+        const href = titleEl?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        // Image from img.isfoto in image cell (second <td>)
+        const imageCell = tds[1];
+        let image = null;
+        const imgEl = imageCell?.querySelector('img.isfoto');
+        if (imgEl) {
+          image = normalizeUrl(imgEl.getAttribute('src'));
+        }
+
+        // Price from a.amopt in price cell (fourth <td>)
+        const priceCell = tds[3];
+        let price = null;
+        const priceEl = priceCell?.querySelector('a.amopt');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        // Category from div.ads_cat_names
+        let shipping = null;
+        const catEl = titleCell?.querySelector('div.ads_cat_names');
+        if (catEl?.textContent) {
+          shipping = cleanText(catEl.textContent);
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting SS.lv item:', err.message);
       }
     });
 

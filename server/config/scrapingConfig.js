@@ -17,7 +17,7 @@ export function getItemsPerPage(country) {
     hu: 36, ie: 30, // Jofogas, DoneDeal
     is: 50, it: 30, // Bland, Subito
     kz: 50, lt: 24, // OLX, Skelbiu
-    lv: 50, mk: 50, // SS.lv, Pazar3
+    lv: 30, mk: 50, // SS.lv, Pazar3
     md: 50, mt: 50, // 999.md, MaltaPark
     nl: 50, no: 50, // Marktplaats, Finn
     pl: 50, pt: 50, // OLX, OLX
@@ -57,6 +57,7 @@ export function getSelector(country) {
     ge: 'a[href*="/pr/"] article[data-testid="product-card"], article[data-testid="product-card"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
+    lv: 'tr[id^="tr_"]',
     lt: 'a.js-cfuser-link.standard-list-item, a.standard-list-item',
   };
   return selectors[country] || selectors.fr;
@@ -223,6 +224,11 @@ const searchUrlByCountry = {
   lt: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/skelbimai/${page}?keywords=${term}`;
+  },
+
+  lv: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/lv/search-result/page${page}.html?q=${term}`;
   },
 };
 
