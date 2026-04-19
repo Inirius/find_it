@@ -81,6 +81,7 @@ export function getExtractor(country) {
     ie: extractDoneDealData,
     lt: extractSkelbIUData,
     lv: extractSsLvData,
+    mk: extractPazar3Data,
   };
   return extractors[country] || extractors.fr;
 }
@@ -1519,6 +1520,75 @@ export async function extractSsLvData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting SS.lv item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractPazar3Data(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div.new.row.row-listing');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.pazar3.mk${value}`;
+      return value;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const titleEl =
+          card.querySelector('h2 a.Link_vis[href]') ||
+          card.querySelector('a.Link_vis[href]') ||
+          card.querySelector('h2 a[href]');
+
+        const title = cleanText(
+          titleEl?.getAttribute('title') || titleEl?.textContent
+        ) || null;
+
+        const href = titleEl?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const imgEl =
+          card.querySelector('img.ProductionImg') ||
+          card.querySelector('.img-col img') ||
+          card.querySelector('img');
+        const image =
+          normalizeUrl(imgEl?.getAttribute('data-src')) ||
+          normalizeUrl(imgEl?.getAttribute('src')) ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('p.list-price');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        let shipping = null;
+        const dateEl = card.querySelector('.title .pull-right');
+        if (dateEl?.textContent) {
+          shipping = cleanText(dateEl.textContent);
+        }
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Pazar3 item:', err.message);
       }
     });
 

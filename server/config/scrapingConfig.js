@@ -58,6 +58,7 @@ export function getSelector(country) {
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
     lv: 'tr[id^="tr_"]',
+    mk: 'div.new.row.row-listing',
     lt: 'a.js-cfuser-link.standard-list-item, a.standard-list-item',
   };
   return selectors[country] || selectors.fr;
@@ -229,6 +230,11 @@ const searchUrlByCountry = {
   lv: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/lv/search-result/page${page}.html?q=${term}`;
+  },
+
+  mk: ({ domain, query, page }) => {
+    const term = normalize.dash(query);
+    return `https://${domain}/ads/q-${term}?Page=${page}`;
   },
 };
 
