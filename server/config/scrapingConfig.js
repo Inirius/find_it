@@ -24,7 +24,7 @@ export function getItemsPerPage(country) {
     ro: 52, ru: 50, // OLX, Avito
     rs: 30, se: 80, // Kupujem Prodajem, Tradera
     si: 31, sk: 20, // Bolha, Bazos
-    tr: 50, ua: 50, // LetGo, OLX
+    tr: 24, ua: 50, // LetGo, OLX
     xk: 50, // Merrjep
   };
   return itemsPerPage[country] || 50;

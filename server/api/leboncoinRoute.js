@@ -1002,6 +1002,9 @@ export function setupLeboncoinRoute(app) {
         const itemsPerPage = getItemsPerPage(country);
         const totalItemsNeeded = pageNum * itemsPerPage;
 
+        if (pageNum === 1) {
+          console.log('🪵 [LETGO] Page 1 detected: skipping load-more to preserve top sponsored/featured cards.');
+        } else {
         try {
           let currentItemCount = await page_obj.evaluate(() => {
             return document.querySelectorAll('div[data-testid="item-card"]').length;
@@ -1056,6 +1059,7 @@ export function setupLeboncoinRoute(app) {
           console.log(`🪵 [LETGO] Loaded ${currentItemCount} cards for requested page ${pageNum}`);
         } catch (err) {
           console.warn('  ⚠️ Could not activate Letgo infinite load:', err.message);
+        }
         }
       }
 
@@ -1177,6 +1181,52 @@ export function setupLeboncoinRoute(app) {
       let pageData = await extractor(page_obj);
 
       if (country === 'tr') {
+        const domItemsPrimary = Array.isArray(pageData) ? pageData : [];
+        const domItemsSnapshot = await page_obj.evaluate(() => {
+          const cards = Array.from(document.querySelectorAll('div[data-testid="item-card"]'));
+          const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+          const normalizeUrl = (value) => {
+            if (!value) return null;
+            if (value.startsWith('http')) return value;
+            if (value.startsWith('/')) return `https://www.letgo.com${value}`;
+            return value;
+          };
+
+          const items = [];
+          for (const card of cards) {
+            const linkEl = card.querySelector('a[href*="/item/"]');
+            const href = linkEl?.getAttribute('href') || null;
+            const url = normalizeUrl(href);
+            if (!url) continue;
+
+            const imgEl = card.querySelector('img');
+            const alt = normalize(imgEl?.getAttribute('alt')) || null;
+
+            const titleEl = card.querySelector('[data-slot="item-card-body"] .overflow-hidden > div');
+            const title = normalize(titleEl?.textContent) || alt || null;
+            if (!title) continue;
+
+            const textNodes = Array.from(card.querySelectorAll('p, div, span'))
+              .map((el) => normalize(el.textContent))
+              .filter(Boolean);
+            const price = textNodes.find((text) => /(?:^|\s)[\d.]+\s*(?:TL|₺)(?:\s|$)/i.test(text)) || null;
+            const shipping = normalize(card.querySelector('[data-slot="item-card-body"] .text-secondary-600 span')?.textContent) || null;
+
+            items.push({
+              title,
+              url,
+              image: imgEl?.getAttribute('src') || null,
+              alt: alt || title,
+              price,
+              shipping,
+            });
+          }
+
+          return items;
+        });
+
+        const domItems = [...domItemsPrimary, ...domItemsSnapshot];
+
         const slugifyLetgoTitle = (value) => {
           return String(value || '')
             .toLowerCase()
@@ -1247,8 +1297,27 @@ export function setupLeboncoinRoute(app) {
           });
 
           if (apiItems.length > 0) {
-            pageData = apiItems;
-            console.log(`🧭 [LETGO] Using API payload results as source of truth (${apiItems.length} items)`);
+            const normalizeKey = (value) => String(value || '').trim().toLowerCase();
+            const merged = [];
+            const seenKeys = new Set();
+
+            // Keep visible DOM order first (captures top cards and rich variants), then complete from API payloads.
+            domItems.forEach((item) => {
+              const key = normalizeKey(item?.url) || normalizeKey(item?.title);
+              if (!key || seenKeys.has(key)) return;
+              seenKeys.add(key);
+              merged.push(item);
+            });
+
+            apiItems.forEach((item) => {
+              const key = normalizeKey(item?.url) || normalizeKey(item?.title);
+              if (!key || seenKeys.has(key)) return;
+              seenKeys.add(key);
+              merged.push(item);
+            });
+
+            pageData = merged;
+            console.log(`🧭 [LETGO] Using merged DOM+API results (domPrimary=${domItemsPrimary.length}, domSnapshot=${domItemsSnapshot.length}, api=${apiItems.length}, merged=${merged.length})`);
           }
         }
       }
