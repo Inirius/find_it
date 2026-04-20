@@ -52,6 +52,69 @@ export async function extractLeBonCoinData(page_obj) {
   });
 }
 
+export async function extractBolhaData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const listingCards = document.querySelectorAll('li.EntityList-item, li.EntityList-item article.entity-body');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.bolha.com${value}`;
+      return value;
+    };
+
+    const uniqueUrls = new Set();
+
+    listingCards.forEach((card) => {
+      try {
+        const linkEl =
+          card.querySelector('h3.entity-title a.link[href]') ||
+          card.querySelector('h3.entity-title a.link[data-href]') ||
+          card.querySelector('a.link[data-href]') ||
+          card.querySelector('a.link[href]');
+        const href = linkEl?.getAttribute('href') || linkEl?.getAttribute('data-href');
+        const url = normalizeUrl(href);
+
+        const titleEl = linkEl?.querySelector('span') || card.querySelector('h3.entity-title span') || card.querySelector('h3.entity-title');
+        const title = cleanText(titleEl?.textContent || linkEl?.textContent) || null;
+
+        const imgEl = card.querySelector('.entity-thumbnail img') || card.querySelector('img');
+        const image = normalizeUrl(imgEl?.getAttribute('src')) || normalizeUrl(imgEl?.getAttribute('data-src')) || null;
+
+        let price = null;
+        const priceEl = card.querySelector('.entity-prices .price, strong.price');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        const locationText = cleanText(card.querySelector('.entity-description')?.textContent || '').replace(/^Lokacija:\s*/i, '');
+        const dateText = cleanText(card.querySelector('.entity-pub-date time')?.textContent || '');
+        const shipping = [locationText || null, dateText || null].filter(Boolean).join(' • ') || null;
+
+        if (title && url && !uniqueUrls.has(url)) {
+          uniqueUrls.add(url);
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Bolha item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
 export function getExtractor(country) {
   const extractors = {
     fr: extractLeBonCoinData,
@@ -65,6 +128,7 @@ export function getExtractor(country) {
     hr: extractNjuskaloData,
     rs: extractKupujemProdajemData,
     se: extractTraderaData,
+    si: extractBolhaData,
     be: extract2ememainData,
     at: extractWillhabenData,
     es: extractWallapopData,

@@ -23,7 +23,7 @@ export function getItemsPerPage(country) {
     pl: 52, pt: 50, // OLX, OLX
     ro: 52, ru: 50, // OLX, Avito
     rs: 30, se: 80, // Kupujem Prodajem, Tradera
-    si: 50, sk: 50, // Bolha, Bazos
+    si: 31, sk: 50, // Bolha, Bazos
     tr: 50, ua: 50, // LetGo, OLX
     xk: 50, // Merrjep
   };
@@ -95,6 +95,7 @@ export function getSelector(country) {
     ge: 'a[href*="/pr/"] article[data-testid="product-card"], article[data-testid="product-card"]',
     no: 'article.sf-search-ad, article[class*="sf-search-ad"]',
     se: 'div[id^="item-card-"][data-item-loaded="true"], div[id^="item-card-"][data-item-type], .item-card-module-scss-module__IIyH5q__itemCard',
+    si: 'li.EntityList-item, li.EntityList-item article.entity-body, h3.entity-title a.link[href*="/oglas-"], li.EntityList-item a.link',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
     pt: 'div[data-cy="l-card"], div[data-testid="l-card"]',
@@ -315,6 +316,11 @@ const searchUrlByCountry = {
   se: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/search?q=${term}&paging=${page}`;
+  },
+
+  si: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/search/?keywords=${term}&page=${page}`;
   },
 
   ru: ({ domain, query, page }) => {

@@ -93,6 +93,59 @@ export function setupLeboncoinRoute(app) {
         'sec-fetch-user': '?1',
       });
 
+      await page_obj.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        Object.defineProperty(navigator, 'languages', { get: () => ['sl-SI', 'sl', 'en-US', 'en'] });
+        Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+        Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+        Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+
+        window.chrome = window.chrome || {
+          runtime: {},
+          app: { isInstalled: false },
+        };
+
+        const originalQuery = window.navigator.permissions?.query;
+        if (originalQuery) {
+          window.navigator.permissions.query = (parameters) => (
+            parameters?.name === 'notifications'
+              ? Promise.resolve({ state: Notification.permission })
+              : originalQuery(parameters)
+          );
+        }
+      });
+
+      if (country === 'si') {
+        console.log('🔐 [BOLHA] Applying stealth strategy for Bolha.si...');
+        await page_obj.setExtraHTTPHeaders({
+          'accept-language': 'sl-SI,sl;q=0.9,en-US;q=0.8,en;q=0.7',
+          'upgrade-insecure-requests': '1',
+          'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'accept-encoding': 'gzip, deflate, br',
+          'cache-control': 'no-cache',
+          'pragma': 'no-cache',
+          'sec-fetch-dest': 'document',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-site': 'none',
+          'sec-fetch-user': '?1',
+          'referer': 'https://www.google.com/',
+        });
+
+        try {
+          console.log('🔐 [BOLHA] Warm-up navigation to homepage...');
+          await page_obj.goto('https://www.bolha.com/', {
+            waitUntil: 'domcontentloaded',
+            timeout: 45000,
+          });
+
+          const warmupDelay = 1800 + Math.random() * 1200;
+          console.log(`🔐 [BOLHA] Warm-up delay: ${Math.round(warmupDelay)}ms`);
+          await new Promise((resolve) => setTimeout(resolve, warmupDelay));
+        } catch (warmupErr) {
+          console.warn('🔐 [BOLHA] Warm-up failed, continuing anyway:', warmupErr.message);
+        }
+      }
+
       if (country === 'ru') {
         // Avito-specific stealth strategy
         console.log('🔐 [AVITO] Applying stealth strategy for Avito.ru...');
@@ -301,6 +354,47 @@ export function setupLeboncoinRoute(app) {
         }
       }
 
+      if (country === 'si') {
+        const bolhaChallenge = await page_obj.evaluate(() => {
+          const bodyText = (document.body?.innerText || '').toLowerCase();
+          const href = window.location.href;
+          const title = document.title || '';
+
+          return {
+            href,
+            title,
+            bodyLength: document.body?.innerText?.length || 0,
+            hasCaptchaWord: bodyText.includes('captcha'),
+            hasRobotWord: bodyText.includes('robot'),
+            hasValidateDomain: href.includes('validate.perfdrive.com'),
+            sampleText: (document.body?.innerText || '').slice(0, 1200),
+          };
+        });
+
+        console.log('🪵 [BOLHA] Navigation debug:', bolhaChallenge);
+
+        if (bolhaChallenge.hasCaptchaWord || bolhaChallenge.hasRobotWord || bolhaChallenge.hasValidateDomain) {
+          console.error('🪵 [BOLHA] CAPTCHA / bot challenge detected. Scrape cannot continue without unblocking.');
+
+          if (browser) {
+            await browser.close();
+            browser = null;
+          }
+
+          return res.status(503).json({
+            success: false,
+            blocked: true,
+            error: 'Bolha is blocking automated access (CAPTCHA).',
+            details: 'Bolha redirected the scraper to Radware Bot Manager. The current request cannot be scraped reliably without a proxy, a whitelisted IP, or a manual challenge solve.',
+            country,
+            page: pageNum,
+            searchUrl,
+            source: getSourceName(country),
+            debug: bolhaChallenge,
+          });
+        }
+      }
+
       // Wait for ads/listings to load (different selectors FR vs DE vs BE)
       const selector = getSelector(country);
 
@@ -416,6 +510,39 @@ export function setupLeboncoinRoute(app) {
             };
           });
           console.log('🪵 [TRADERA] Selector timeout debug:', selectorDebug);
+        }
+
+        if (country === 'si') {
+          const selectorDebug = await page_obj.evaluate(() => {
+            const selectors = [
+              'li.EntityList-item',
+              'li.EntityList-item article.entity-body',
+              'h3.entity-title a.link[href*="/oglas-"]',
+              'li.EntityList-item a.link',
+              '.entity-thumbnail img',
+              '.entity-prices .price',
+            ];
+
+            const counts = {};
+            selectors.forEach((s) => {
+              counts[s] = document.querySelectorAll(s).length;
+            });
+
+            const bodyText = (document.body?.innerText || '').toLowerCase();
+            return {
+              href: window.location.href,
+              title: document.title,
+              readyState: document.readyState,
+              counts,
+              bodyLength: document.body?.innerText?.length || 0,
+              hasCaptchaWord: bodyText.includes('captcha'),
+              hasRobotWord: bodyText.includes('robot'),
+              hasBlockedWord: bodyText.includes('blocked'),
+              hasAccessDeniedWord: bodyText.includes('access denied'),
+              sampleText: (document.body?.innerText || '').slice(0, 800),
+            };
+          });
+          console.log('🪵 [BOLHA] Selector timeout debug:', selectorDebug);
         }
 
         await new Promise(resolve => setTimeout(resolve, 3000));
@@ -694,6 +821,57 @@ export function setupLeboncoinRoute(app) {
           });
         } else {
           try {
+
+      if (country === 'si') {
+        console.log(`🪵 [${config.name.toUpperCase()}] Extracted item count:`, pageData.length);
+        if (pageData.length > 0) {
+          console.log(`🪵 [${config.name.toUpperCase()}] First extracted item preview:`, {
+            title: pageData[0]?.title,
+            url: pageData[0]?.url,
+            image: pageData[0]?.image,
+            price: pageData[0]?.price,
+          });
+        } else {
+          try {
+            const dumpData = await page_obj.evaluate(() => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const selectors = [
+                'li.EntityList-item',
+                'li.EntityList-item article.entity-body',
+                'h3.entity-title a.link[href*="/oglas-"]',
+                'li.EntityList-item a.link',
+              ];
+
+              const counts = {};
+              selectors.forEach((s) => {
+                counts[s] = document.querySelectorAll(s).length;
+              });
+
+              const links = Array.from(document.querySelectorAll('a.link[href], a.link[data-href]'))
+                .map((el) => ({
+                  href: el.getAttribute('href') || el.getAttribute('data-href') || null,
+                  text: normalize(el.textContent).slice(0, 180) || null,
+                  title: el.getAttribute('title') || null,
+                }))
+                .filter((item) => item.href || item.text)
+                .slice(0, 25);
+
+              return {
+                href: window.location.href,
+                title: document.title,
+                bodyLength: document.body?.innerText?.length || 0,
+                counts,
+                links,
+                sampleText: (document.body?.innerText || '').slice(0, 1200),
+              };
+            });
+
+            console.log('🪵 [BOLHA] Empty extraction debug:', dumpData);
+          } catch (dumpErr) {
+            console.warn('🪵 [BOLHA] Failed to collect empty-extraction debug:', dumpErr.message);
+          }
+        }
+      }
             const dumpData = await page_obj.evaluate(() => {
               const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
               const buttons = Array.from(document.querySelectorAll('button, a, [role="button"], input[type="button"]'))
