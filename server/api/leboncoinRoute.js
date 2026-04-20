@@ -71,50 +71,13 @@ export function setupLeboncoinRoute(app) {
       });
 
       const page_obj = await browser.newPage();
-      const letgoNetworkTrace = [];
       const letgoApiPayloads = [];
 
       if (country === 'tr') {
-        const pushTrace = (entry) => {
-          if (letgoNetworkTrace.length >= 120) {
-            letgoNetworkTrace.shift();
-          }
-          letgoNetworkTrace.push({
-            ...entry,
-            ts: new Date().toISOString(),
-          });
-        };
-
-        page_obj.on('request', (request) => {
-          try {
-            const url = request.url();
-            const type = request.resourceType();
-            if (!url.includes('letgo.com')) return;
-            if (!['document', 'xhr', 'fetch'].includes(type)) return;
-            pushTrace({
-              event: 'request',
-              type,
-              method: request.method(),
-              url: url.slice(0, 500),
-            });
-          } catch {
-            // Ignore request-trace failures.
-          }
-        });
-
         page_obj.on('response', (response) => {
           try {
             const url = response.url();
-            const request = response.request();
-            const type = request.resourceType();
             if (!url.includes('letgo.com')) return;
-            if (!['document', 'xhr', 'fetch'].includes(type)) return;
-            pushTrace({
-              event: 'response',
-              type,
-              status: response.status(),
-              url: url.slice(0, 500),
-            });
 
             if (url.includes('/api/search/items') && response.status() === 200) {
               response.text().then((rawText) => {
@@ -1070,25 +1033,13 @@ export function setupLeboncoinRoute(app) {
             const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
             const itemCards = document.querySelectorAll('[data-testid="item-card"]').length;
             const links = document.querySelectorAll('a[href]').length;
-            const mainSearchInput = document.querySelector('input[name="main-search-input"]');
-            const canonicalEl = document.querySelector('link[rel="canonical"]');
-            const firstTitles = Array.from(document.querySelectorAll('[data-testid="item-card"] h2, [data-testid="item-card"] h3, [data-testid="item-card"] [class*="title" i]'))
-              .map((el) => normalize(el.textContent))
-              .filter(Boolean)
-              .slice(0, 12);
 
             return {
               href: window.location.href,
-              search: window.location.search,
               title: document.title,
               bodyLength: document.body?.innerText?.length || 0,
               itemCards,
               links,
-              canonicalHref: canonicalEl?.getAttribute('href') || null,
-              mainSearchInputValue: mainSearchInput?.value || null,
-              queryTextParam: new URLSearchParams(window.location.search).get('query_text'),
-              qParam: new URLSearchParams(window.location.search).get('q'),
-              firstTitles,
               html: document.documentElement?.outerHTML || '',
               sampleText: normalize((document.body?.innerText || '').slice(0, 1000)),
             };
@@ -1114,17 +1065,10 @@ export function setupLeboncoinRoute(app) {
                 selector,
                 searchUrl,
                 finalUrl: dumpData.href,
-                finalSearch: dumpData.search,
                 title: dumpData.title,
                 bodyLength: dumpData.bodyLength,
                 itemCards: dumpData.itemCards,
                 links: dumpData.links,
-                canonicalHref: dumpData.canonicalHref,
-                mainSearchInputValue: dumpData.mainSearchInputValue,
-                queryTextParam: dumpData.queryTextParam,
-                qParam: dumpData.qParam,
-                firstTitles: dumpData.firstTitles,
-                networkTrace: country === 'tr' ? letgoNetworkTrace : [],
                 sampleText: dumpData.sampleText,
               },
               null,
@@ -1132,14 +1076,6 @@ export function setupLeboncoinRoute(app) {
             ),
             'utf8'
           );
-
-          if (country === 'tr' && letgoApiPayloads.length > 0) {
-            for (let idx = 0; idx < letgoApiPayloads.length; idx += 1) {
-              const apiPath = path.join(debugDir, `${baseName}-letgo-api-${idx + 1}.json`);
-              await fs.writeFile(apiPath, JSON.stringify(letgoApiPayloads[idx], null, 2), 'utf8');
-              console.log(`🧪 [SCRAPE-DEBUG] Letgo API dump saved: ${apiPath}`);
-            }
-          }
 
           console.log(`🧪 [SCRAPE-DEBUG] HTML dump saved: ${htmlPath}`);
           console.log(`🧪 [SCRAPE-DEBUG] Metadata saved: ${metaPath}`);
