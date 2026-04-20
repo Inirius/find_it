@@ -115,6 +115,67 @@ export async function extractBolhaData(page_obj) {
   });
 }
 
+export async function extractBazosData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div.inzeraty.inzeratyflex, div.inzeraty.inzeratyflex > div.inzeratynadpis');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.bazos.sk${value}`;
+      return value;
+    };
+
+    const seen = new Set();
+
+    cards.forEach((card) => {
+      try {
+        const root = card.classList?.contains('inzeraty') ? card : card.closest('div.inzeraty.inzeratyflex') || card;
+        const titleLink = root.querySelector('h2.nadpis a[href]') || root.querySelector('.inzeratynadpis a[href]') || root.querySelector('a[href*="/inzerat/"]');
+        const href = titleLink?.getAttribute('href');
+        const url = normalizeUrl(href);
+        if (!url || seen.has(url)) return;
+
+        const title = cleanText(titleLink?.textContent || titleLink?.getAttribute('title')) || null;
+
+        const imgEl = root.querySelector('img.obrazek') || root.querySelector('img');
+        const image = normalizeUrl(imgEl?.getAttribute('src')) || normalizeUrl(imgEl?.getAttribute('data-src')) || null;
+
+        const priceEl = root.querySelector('div.inzeratycena span, div.inzeratycena b span, div.inzeratycena');
+        const price = cleanText(priceEl?.textContent) || null;
+
+        const locationEl = root.querySelector('div.inzeratylok');
+        const location = cleanText(locationEl?.textContent) || null;
+
+        const dateEl = root.querySelector('span.velikost10');
+        const date = cleanText(dateEl?.textContent || '').replace(/^[-\s\[\]]+|[-\s\[\]]+$/g, '') || null;
+        const shipping = [location, date].filter(Boolean).join(' • ') || null;
+
+        seen.add(url);
+
+        if (title) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Bazos item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
 export function getExtractor(country) {
   const extractors = {
     fr: extractLeBonCoinData,
@@ -129,6 +190,7 @@ export function getExtractor(country) {
     rs: extractKupujemProdajemData,
     se: extractTraderaData,
     si: extractBolhaData,
+    sk: extractBazosData,
     be: extract2ememainData,
     at: extractWillhabenData,
     es: extractWallapopData,
