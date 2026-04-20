@@ -97,6 +97,7 @@ export function getSelector(country) {
     se: 'div[id^="item-card-"][data-item-loaded="true"], div[id^="item-card-"][data-item-type], .item-card-module-scss-module__IIyH5q__itemCard',
     si: 'li.EntityList-item, li.EntityList-item article.entity-body, h3.entity-title a.link[href*="/oglas-"], li.EntityList-item a.link',
     sk: 'div.inzeraty.inzeratyflex, div.inzeraty.inzeratyflex .inzeratynadpis a, div.inzeraty.inzeratyflex .inzeratycena',
+    tr: 'div[data-testid="item-card"], div[data-testid="item-card"] a[href*="/item/"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     pl: 'div[data-cy="l-card"]',
     pt: 'div[data-cy="l-card"], div[data-testid="l-card"]',
@@ -328,6 +329,12 @@ const searchUrlByCountry = {
     const term = normalize.plus(query);
     const crz = page > 1 ? `&crz=${(page - 1) * 20}` : '';
     return `https://${domain}/search.php?hledat=${term}${crz}`;
+  },
+
+  tr: ({ domain, query }) => {
+    const term = normalize.encoded(query);
+    const host = domain.startsWith('www.') ? domain : `www.${domain}`;
+    return `https://${host}/arama?query_text=${term}&isSearchCall=true`;
   },
 
   ru: ({ domain, query, page }) => {

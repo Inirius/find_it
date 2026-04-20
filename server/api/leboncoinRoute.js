@@ -22,8 +22,9 @@ export function setupLeboncoinRoute(app) {
   app.get('/api/leboncoin/search', async (req, res) => {
     let browser;
     try {
-      const { query = 'drone', page = '1', country = 'fr' } = req.query;
+      const { query = 'drone', page = '1', country = 'fr', debugHtml = '1', trExcludeSponsored = '0' } = req.query;
       const pageNum = Math.max(1, parseInt(page) || 1);
+      const shouldExcludeTrSponsored = ['1', 'true', 'yes'].includes(String(trExcludeSponsored).toLowerCase());
 
       // Temporary deactivation: Gumtree (AU) and Sbazar (CZ) require proxy setup
       if (country === 'au' || country === 'cz') {
@@ -70,6 +71,189 @@ export function setupLeboncoinRoute(app) {
       });
 
       const page_obj = await browser.newPage();
+      const letgoNetworkTrace = [];
+      const letgoApiPayloads = [];
+
+      if (country === 'tr') {
+        const pushTrace = (entry) => {
+          if (letgoNetworkTrace.length >= 120) {
+            letgoNetworkTrace.shift();
+          }
+          letgoNetworkTrace.push({
+            ...entry,
+            ts: new Date().toISOString(),
+          });
+        };
+
+        page_obj.on('request', (request) => {
+          try {
+            const url = request.url();
+            const type = request.resourceType();
+            if (!url.includes('letgo.com')) return;
+            if (!['document', 'xhr', 'fetch'].includes(type)) return;
+            pushTrace({
+              event: 'request',
+              type,
+              method: request.method(),
+              url: url.slice(0, 500),
+            });
+          } catch {
+            // Ignore request-trace failures.
+          }
+        });
+
+        page_obj.on('response', (response) => {
+          try {
+            const url = response.url();
+            const request = response.request();
+            const type = request.resourceType();
+            if (!url.includes('letgo.com')) return;
+            if (!['document', 'xhr', 'fetch'].includes(type)) return;
+            pushTrace({
+              event: 'response',
+              type,
+              status: response.status(),
+              url: url.slice(0, 500),
+            });
+
+            if (url.includes('/api/search/items') && response.status() === 200) {
+              response.text().then((rawText) => {
+                if (!rawText) return;
+
+                if (letgoApiPayloads.length >= 16) {
+                  letgoApiPayloads.shift();
+                }
+
+                let parsed = null;
+                try {
+                  parsed = JSON.parse(rawText);
+                } catch {
+                  parsed = null;
+                }
+
+                const normalizedQuery = String(query || '').trim().toLowerCase();
+                const decodedUrl = decodeURIComponent(url).toLowerCase();
+                const queryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
+                const queryMatch = queryTokens.length > 0 && queryTokens.every((token) => decodedUrl.includes(token));
+
+                letgoApiPayloads.push({
+                  url,
+                  status: response.status(),
+                  capturedAt: new Date().toISOString(),
+                  queryMatch,
+                  body: parsed || rawText,
+                });
+              }).catch(() => {
+                // Ignore payload capture errors.
+              });
+            }
+          } catch {
+            // Ignore response-trace failures.
+          }
+        });
+      }
+
+      const resolveTurkeyConsent = async (page, stageLabel) => {
+        const clickConsentInFrame = async (frame) => {
+          try {
+            return await frame.evaluate(() => {
+              const normalize = (value) => (value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+              const labels = [
+                't\u00fcm\u00fcn\u00fc kabul et',
+                'kabul et',
+                'izin ver',
+                'accept all',
+                'agree',
+                'allow all',
+              ];
+
+              const selectorHints = [
+                '#cmpwelcomebtnyes',
+                '#cmpbntyestxt',
+                '.cmpboxbtnyes',
+                '[id*="accept"]',
+                '[class*="accept"]',
+                '[aria-label*="accept" i]',
+                '[data-testid*="accept" i]',
+              ];
+
+              for (const selector of selectorHints) {
+                const directEl = document.querySelector(selector);
+                if (directEl) {
+                  directEl.click();
+                  return `selector:${selector}`;
+                }
+              }
+
+              const candidates = Array.from(document.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"]'));
+              for (const el of candidates) {
+                const text = normalize(el.textContent || el.getAttribute('value') || el.getAttribute('aria-label'));
+                if (!text) continue;
+                if (labels.some((label) => text.includes(label))) {
+                  el.click();
+                  return `text:${text.slice(0, 80)}`;
+                }
+              }
+
+              return null;
+            });
+          } catch {
+            return null;
+          }
+        };
+
+        let clickedAny = false;
+        const actions = [];
+
+        for (let attempt = 1; attempt <= 4; attempt += 1) {
+          const mainAction = await clickConsentInFrame(page.mainFrame());
+          if (mainAction) {
+            clickedAny = true;
+            actions.push(`main:${mainAction}`);
+          }
+
+          const frames = page.frames();
+          for (const frame of frames) {
+            if (frame === page.mainFrame()) continue;
+            const frameAction = await clickConsentInFrame(frame);
+            if (frameAction) {
+              clickedAny = true;
+              const frameUrl = frame.url() || 'about:blank';
+              actions.push(`frame:${frameUrl}:${frameAction}`);
+            }
+          }
+
+          if (clickedAny) {
+            await new Promise((resolve) => setTimeout(resolve, 1400));
+            break;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 900));
+        }
+
+        const consentState = await page.evaluate(() => {
+          const hasCmpIframe = document.querySelectorAll('iframe[name*="cmp" i], iframe[src*="consentmanager" i], iframe[src*="cmp" i]').length > 0;
+          const bodyText = (document.body?.innerText || '').toLowerCase();
+          const consentPromptVisible =
+            bodyText.includes('çerez') ||
+            bodyText.includes('kabul et') ||
+            bodyText.includes('consent') ||
+            bodyText.includes('privacy');
+
+          return {
+            href: window.location.href,
+            title: document.title,
+            hasCmpIframe,
+            consentPromptVisible,
+          };
+        });
+
+        console.log(`🔐 [LETGO] Consent ${stageLabel}:`, {
+          clickedAny,
+          actions,
+          ...consentState,
+        });
+      };
 
       // Set realistic viewport and user agent
       await page_obj.setViewport({ width: 1920, height: 1080 });
@@ -146,6 +330,48 @@ export function setupLeboncoinRoute(app) {
         }
       }
 
+      if (country === 'tr') {
+        console.log('🔐 [LETGO] Applying stealth strategy for Letgo Turkey...');
+
+        const letgoUserAgents = [
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
+        ];
+
+        const randomUA = letgoUserAgents[Math.floor(Math.random() * letgoUserAgents.length)];
+        await page_obj.setUserAgent(randomUA);
+
+        await page_obj.setExtraHTTPHeaders({
+          'accept-language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'upgrade-insecure-requests': '1',
+          'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'cache-control': 'no-cache',
+          'pragma': 'no-cache',
+          'sec-fetch-dest': 'document',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-site': 'none',
+          'sec-fetch-user': '?1',
+          'referer': 'https://www.google.com/',
+        });
+
+        try {
+          console.log('🔐 [LETGO] Warm-up navigation to homepage...');
+          await page_obj.goto('https://www.letgo.com/', {
+            waitUntil: 'domcontentloaded',
+            timeout: 45000,
+          });
+
+          await resolveTurkeyConsent(page_obj, 'warmup');
+
+          const warmupDelay = 1700 + Math.random() * 1300;
+          console.log(`🔐 [LETGO] Warm-up delay: ${Math.round(warmupDelay)}ms`);
+          await new Promise((resolve) => setTimeout(resolve, warmupDelay));
+        } catch (warmupErr) {
+          console.warn('🔐 [LETGO] Warm-up failed, continuing anyway:', warmupErr.message);
+        }
+      }
+
       if (country === 'ru') {
         // Avito-specific stealth strategy
         console.log('🔐 [AVITO] Applying stealth strategy for Avito.ru...');
@@ -209,6 +435,10 @@ export function setupLeboncoinRoute(app) {
       } catch (navErr) {
         console.warn('Primary goto timed out, retrying with domcontentloaded:', navErr.message);
         await page_obj.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      }
+
+      if (country === 'tr') {
+        await resolveTurkeyConsent(page_obj, 'search');
       }
 
       if (country === 'se') {
@@ -767,6 +997,153 @@ export function setupLeboncoinRoute(app) {
         }
       }
 
+      if (country === 'tr') {
+        console.log('📜 Loading more Letgo results...');
+        const itemsPerPage = getItemsPerPage(country);
+        const totalItemsNeeded = pageNum * itemsPerPage;
+
+        try {
+          let currentItemCount = await page_obj.evaluate(() => {
+            return document.querySelectorAll('div[data-testid="item-card"]').length;
+          });
+
+          let attempts = 0;
+          let stagnantAttempts = 0;
+          const maxAttempts = 12;
+
+          while (currentItemCount < totalItemsNeeded && attempts < maxAttempts) {
+            attempts += 1;
+
+            await page_obj.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+            await new Promise((resolve) => setTimeout(resolve, 1800));
+
+            const clicked = await page_obj.evaluate(() => {
+              const normalize = (v) => (v || '').toLowerCase().replace(/\s+/g, ' ').trim();
+              const buttons = Array.from(document.querySelectorAll('button'));
+
+              const btn = buttons.find((el) => {
+                const text = normalize(el.textContent);
+                const cls = normalize(el.className);
+                return text.includes('daha fazla yükle') || (text.includes('daha') && text.includes('yükle')) || cls.includes('btn-outlined');
+              });
+
+              if (!btn) return false;
+              btn.scrollIntoView({ block: 'center', behavior: 'instant' });
+              btn.click();
+              return true;
+            });
+
+            if (clicked) {
+              await new Promise((resolve) => setTimeout(resolve, 2200));
+            }
+
+            const newCount = await page_obj.evaluate(() => {
+              return document.querySelectorAll('div[data-testid="item-card"]').length;
+            });
+
+            if (newCount === currentItemCount) {
+              stagnantAttempts += 1;
+              if (stagnantAttempts >= 3) {
+                break;
+              }
+            } else {
+              stagnantAttempts = 0;
+            }
+
+            currentItemCount = newCount;
+          }
+
+          console.log(`🪵 [LETGO] Loaded ${currentItemCount} cards for requested page ${pageNum}`);
+        } catch (err) {
+          console.warn('  ⚠️ Could not activate Letgo infinite load:', err.message);
+        }
+      }
+
+      const shouldDumpHtml = String(debugHtml).toLowerCase() !== '0' && String(debugHtml).toLowerCase() !== 'false';
+      if (shouldDumpHtml) {
+        try {
+          const dumpData = await page_obj.evaluate(() => {
+            const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+            const itemCards = document.querySelectorAll('[data-testid="item-card"]').length;
+            const links = document.querySelectorAll('a[href]').length;
+            const mainSearchInput = document.querySelector('input[name="main-search-input"]');
+            const canonicalEl = document.querySelector('link[rel="canonical"]');
+            const firstTitles = Array.from(document.querySelectorAll('[data-testid="item-card"] h2, [data-testid="item-card"] h3, [data-testid="item-card"] [class*="title" i]'))
+              .map((el) => normalize(el.textContent))
+              .filter(Boolean)
+              .slice(0, 12);
+
+            return {
+              href: window.location.href,
+              search: window.location.search,
+              title: document.title,
+              bodyLength: document.body?.innerText?.length || 0,
+              itemCards,
+              links,
+              canonicalHref: canonicalEl?.getAttribute('href') || null,
+              mainSearchInputValue: mainSearchInput?.value || null,
+              queryTextParam: new URLSearchParams(window.location.search).get('query_text'),
+              qParam: new URLSearchParams(window.location.search).get('q'),
+              firstTitles,
+              html: document.documentElement?.outerHTML || '',
+              sampleText: normalize((document.body?.innerText || '').slice(0, 1000)),
+            };
+          });
+
+          const debugDir = path.join(process.cwd(), 'debug', 'scrape-dumps');
+          await fs.mkdir(debugDir, { recursive: true });
+
+          const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const safeQuery = String(query).trim().toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'query';
+          const baseName = `${country}-q-${safeQuery}-p-${pageNum}-${stamp}`;
+          const htmlPath = path.join(debugDir, `${baseName}.html`);
+          const metaPath = path.join(debugDir, `${baseName}.json`);
+
+          await fs.writeFile(htmlPath, dumpData.html, 'utf8');
+          await fs.writeFile(
+            metaPath,
+            JSON.stringify(
+              {
+                query,
+                country,
+                page: pageNum,
+                selector,
+                searchUrl,
+                finalUrl: dumpData.href,
+                finalSearch: dumpData.search,
+                title: dumpData.title,
+                bodyLength: dumpData.bodyLength,
+                itemCards: dumpData.itemCards,
+                links: dumpData.links,
+                canonicalHref: dumpData.canonicalHref,
+                mainSearchInputValue: dumpData.mainSearchInputValue,
+                queryTextParam: dumpData.queryTextParam,
+                qParam: dumpData.qParam,
+                firstTitles: dumpData.firstTitles,
+                networkTrace: country === 'tr' ? letgoNetworkTrace : [],
+                sampleText: dumpData.sampleText,
+              },
+              null,
+              2
+            ),
+            'utf8'
+          );
+
+          if (country === 'tr' && letgoApiPayloads.length > 0) {
+            for (let idx = 0; idx < letgoApiPayloads.length; idx += 1) {
+              const apiPath = path.join(debugDir, `${baseName}-letgo-api-${idx + 1}.json`);
+              await fs.writeFile(apiPath, JSON.stringify(letgoApiPayloads[idx], null, 2), 'utf8');
+              console.log(`🧪 [SCRAPE-DEBUG] Letgo API dump saved: ${apiPath}`);
+            }
+          }
+
+          console.log(`🧪 [SCRAPE-DEBUG] HTML dump saved: ${htmlPath}`);
+          console.log(`🧪 [SCRAPE-DEBUG] Metadata saved: ${metaPath}`);
+        } catch (dumpErr) {
+          console.warn('🧪 [SCRAPE-DEBUG] Failed to save HTML dump:', dumpErr.message);
+        }
+      }
+
       // Extract data from the page
       const extractor = getExtractor(country);
 
@@ -798,6 +1175,83 @@ export function setupLeboncoinRoute(app) {
       }
 
       let pageData = await extractor(page_obj);
+
+      if (country === 'tr') {
+        const slugifyLetgoTitle = (value) => {
+          return String(value || '')
+            .toLowerCase()
+            .normalize('NFKD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/ı/g, 'i')
+            .replace(/ş/g, 's')
+            .replace(/ğ/g, 'g')
+            .replace(/ü/g, 'u')
+            .replace(/ö/g, 'o')
+            .replace(/ç/g, 'c')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        };
+
+        const normalizeLetgoApiItem = (item) => {
+          const id = item?.id ? String(item.id) : null;
+          const title = String(item?.title || '').trim() || null;
+          if (!id || !title) return null;
+
+          const slug = slugifyLetgoTitle(title) || 'item';
+          const url = `https://www.letgo.com/item/${slug}-iid-${id}`;
+
+          const image =
+            item?.images?.[0]?.big?.url ||
+            item?.imageUrl ||
+            (item?.image?.external_id ? `https://imvm.letgo.com/v1/files/${item.image.external_id}/image;s=640x640` : null);
+
+          const price =
+            item?.price_display ||
+            item?.price?.value?.display ||
+            null;
+
+          const shipping = [item?.city_name, item?.district_name].filter(Boolean).join(', ') || null;
+
+          const isSponsored = Boolean(item?.is_highlight || item?.isHighlight || item?.is_massive || item?.isMassive || item?.vitamins?.highlight || item?.vitamins?.massive);
+
+          return {
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+            isSponsored,
+          };
+        };
+
+        const matchedApiPayloads = letgoApiPayloads.filter((payload) =>
+          payload?.queryMatch && Array.isArray(payload?.body?.data)
+        );
+
+        if (matchedApiPayloads.length > 0) {
+          const seenIds = new Set();
+          const apiItems = [];
+
+          matchedApiPayloads.forEach((payload) => {
+            payload.body.data.forEach((rawItem) => {
+              const itemId = String(rawItem?.id || '');
+              if (!itemId || seenIds.has(itemId)) return;
+
+              const normalized = normalizeLetgoApiItem(rawItem);
+              if (!normalized) return;
+
+              seenIds.add(itemId);
+              apiItems.push(normalized);
+            });
+          });
+
+          if (apiItems.length > 0) {
+            pageData = apiItems;
+            console.log(`🧭 [LETGO] Using API payload results as source of truth (${apiItems.length} items)`);
+          }
+        }
+      }
 
       if (country === 'au') {
         console.log(`🪵 [${config.name.toUpperCase()}] Extracted item count:`, pageData.length);
@@ -932,12 +1386,26 @@ export function setupLeboncoinRoute(app) {
 
       // For Wallapop (Spain), slice results to only return the current page
       let items = pageData;
+
+      if (country === 'tr' && shouldExcludeTrSponsored) {
+        const beforeFilterCount = items.length;
+        items = items.filter((item) => !item?.isSponsored);
+        console.log(`🧹 [LETGO] Sponsored filter enabled: ${beforeFilterCount} -> ${items.length}`);
+      }
+
       if (country === 'es' && pageNum > 1) {
         const itemsPerPage = getItemsPerPage(country);
         const startIndex = (pageNum - 1) * itemsPerPage;
         const endIndex = pageNum * itemsPerPage;
         items = pageData.slice(startIndex, endIndex);
         console.log(`📄 Wallapop: Extracted items ${startIndex}-${endIndex - 1} from ${pageData.length} total loaded items`);
+      }
+      if (country === 'tr' && pageNum > 1) {
+        const itemsPerPage = getItemsPerPage(country);
+        const startIndex = (pageNum - 1) * itemsPerPage;
+        const endIndex = pageNum * itemsPerPage;
+        items = pageData.slice(startIndex, endIndex);
+        console.log(`📄 Letgo: Extracted items ${startIndex}-${endIndex - 1} from ${pageData.length} total loaded items`);
       }
 
       await browser.close();

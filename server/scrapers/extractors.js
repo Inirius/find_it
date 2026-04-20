@@ -176,6 +176,127 @@ export async function extractBazosData(page_obj) {
   });
 }
 
+export async function extractLetgoData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div[data-testid="item-card"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.letgo.com${value}`;
+      return value;
+    };
+
+    const normalizeTitle = (value) => cleanText(value)
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const isPromoLabel = (value) => {
+      const v = normalizeTitle(value).toLowerCase();
+      if (!v) return true;
+      return (
+        v === 'elden al, kartla öde!' ||
+        v === 'elden al kartla öde' ||
+        v.includes('cuzdanim guvende') ||
+        v.includes('cüzdanım güvende') ||
+        v.includes('satıcı puanı') ||
+        v.includes('buyuk ilan') ||
+        v.includes('büyük ilan') ||
+        v.includes('öne çıkan') ||
+        v.includes('one cikan')
+      );
+    };
+
+    const titleFromHref = (href) => {
+      if (!href) return null;
+      const match = href.match(/\/item\/([^/?#]+)/i);
+      if (!match?.[1]) return null;
+      const slug = match[1].replace(/-iid-\d+$/i, '');
+      const decoded = decodeURIComponent(slug).replace(/-/g, ' ').trim();
+      return decoded || null;
+    };
+
+    const seen = new Set();
+
+    const isLikelyPrice = (text) => /(?:^|\s)(?:[\d.]+\s*(?:TL|₺)|TL|₺)(?:\s|$)/i.test(text);
+    const isLikelyInstallment = (text) => /\btaksit\b/i.test(text);
+    const isSponsoredBadge = (text) => {
+      const v = normalizeTitle(text).toLowerCase();
+      if (!v) return false;
+      return v.includes('öne çıkan') || v.includes('one cikan') || v.includes('büyük ilan') || v.includes('buyuk ilan');
+    };
+
+    cards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a[href*="/item/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = normalizeUrl(href);
+        if (!url || seen.has(url)) return;
+
+        const imgEl = card.querySelector('img');
+        const image = normalizeUrl(imgEl?.getAttribute('src')) || normalizeUrl(imgEl?.getAttribute('data-src')) || null;
+
+        const body = card.querySelector('div[data-slot="item-card-body"]') || card;
+        const cardText = normalizeTitle(card.textContent);
+        const isSponsored = isSponsoredBadge(cardText);
+
+        // Prefer the dedicated title line, then fallback to non-price line-clamp text, then image alt.
+        const explicitTitle = normalizeTitle(body.querySelector('div.overflow-hidden > div')?.textContent);
+        const lineClampTexts = Array.from(body.querySelectorAll('div[class*="line-clamp-1"], p[class*="line-clamp-1"], span[class*="line-clamp-1"]'))
+          .map((el) => normalizeTitle(el.textContent))
+          .filter(Boolean);
+        const titleFromLineClamp = lineClampTexts.find((text) => !isLikelyPrice(text) && !isLikelyInstallment(text) && !isPromoLabel(text));
+
+        const altTitle = normalizeTitle(imgEl?.getAttribute('alt'));
+        const hrefTitle = normalizeTitle(titleFromHref(href));
+
+        const titleCandidates = [
+          explicitTitle,
+          titleFromLineClamp,
+          altTitle,
+          hrefTitle,
+        ].filter(Boolean);
+
+        const title = titleCandidates.find((candidate) => !isPromoLabel(candidate)) || null;
+
+        let price = null;
+        const priceCandidates = Array.from(body.querySelectorAll('p, div, span'))
+          .map((el) => cleanText(el.textContent))
+          .filter(Boolean);
+        const priceHit = priceCandidates.find((text) => isLikelyPrice(text));
+        if (priceHit) price = priceHit;
+
+        let shipping = null;
+        const locationEl = body.querySelector('div.text-secondary-600 span') || body.querySelector('div[class*="text-secondary-600"] span');
+        if (locationEl?.textContent) {
+          shipping = cleanText(locationEl.textContent);
+        }
+
+        seen.add(url);
+        if (title) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+            isSponsored,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Letgo item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
 export function getExtractor(country) {
   const extractors = {
     fr: extractLeBonCoinData,
@@ -191,6 +312,7 @@ export function getExtractor(country) {
     se: extractTraderaData,
     si: extractBolhaData,
     sk: extractBazosData,
+    tr: extractLetgoData,
     be: extract2ememainData,
     at: extractWillhabenData,
     es: extractWallapopData,
