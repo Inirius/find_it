@@ -5,7 +5,7 @@ Application React + Express utilisant l'API officielle **Browse** d'eBay (OAuth)
 ## Architecture
 
 - **Frontend**: React + Vite (port 5173)
-- **Backend**: Express + Browse API eBay (port 3002) – OAuth client credentials
+- **Backend**: Express + Browse API eBay (port 3001) – OAuth client credentials
 
 ## Installation et démarrage
 
@@ -13,11 +13,11 @@ Application React + Express utilisant l'API officielle **Browse** d'eBay (OAuth)
 
 ```bash
 cd server
-$env:PORT=3002
+$env:PORT=3001
 npm start
 ```
 
-Le serveur API sera disponible sur `http://localhost:3002`
+Le serveur API sera disponible sur `http://localhost:3001`
 
 ### 2️⃣ Démarrer le frontend (Terminal 2)
 
@@ -32,12 +32,12 @@ L'application sera disponible sur `http://localhost:5173`
 ### Endpoint de recherche (Browse API)
 
 ```
-GET http://localhost:3002/api/ebay/browse?query=YOUR_SEARCH&limit=20
+GET http://localhost:3001/api/ebay/browse?query=YOUR_SEARCH&limit=20
 ```
 
 Exemple:
 ```bash
-curl "http://localhost:3002/api/ebay/browse?query=drone&limit=3"
+curl "http://localhost:3001/api/ebay/browse?query=drone&limit=3"
 ```
 
 Réponse (exemple):
@@ -61,7 +61,7 @@ Réponse (exemple):
 ### Health check
 
 ```
-GET http://localhost:3002/health
+GET http://localhost:3001/health
 ```
 
 ## Pourquoi cette architecture ?

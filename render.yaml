@@ -6,7 +6,7 @@ services:
     startCommand: cd server && npm start
     envVars:
       - key: PORT
-        value: 3002
+        value: 3001
       - key: EBAY_APP_ID
         sync: false
       - key: EBAY_CERT_ID

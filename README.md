@@ -17,10 +17,10 @@ npm install
 
 ### Lancer le site (à chaque fois)
 
-Terminal 1 - Backend (port 3002) :
+Terminal 1 - Backend (port 3001) :
 ```bash
 cd server
-$env:PORT=3002
+$env:PORT=3001
 npm start
 ```
 
