@@ -67,7 +67,7 @@ const IDENTIFIED_CLASSIFIED_SITE_BY_COUNTRY: { [key: string]: string } = {
   mc: 'ClickMonaco', md: '999.md', me: 'Patuljak', mt: 'MaltaPark', nl: 'Marktplaats', no: 'Finn',
   pl: 'OLX', pt: 'OLX', ro: 'OLX', ru: 'Avito',
   rs: 'Kupujem Prodajem', se: 'Tradera', si: 'Bolha', sk: 'Bazos',
-  tr: 'LetGo', ua: 'OLX', ch: 'richardo.ch', xk: 'Merrjep',
+  tr: 'LetGo', ua: 'OLX', ch: 'Ricardo', xk: 'Merrjep',
 };
 
 const CLASSIFIED_SCRAPER_SUPPORTED_COUNTRIES: { [key: string]: boolean } = {
@@ -81,7 +81,7 @@ const CLASSIFIED_SCRAPER_SUPPORTED_COUNTRIES: { [key: string]: boolean } = {
   mc: true, md: true, me: true, mt: true, nl: true, no: true,
   pl: true, pt: true, ro: true, ru: true,
   rs: true, se: true, si: true, sk: true,
-  tr: true, ua: true, xk: true,
+  ch: true, tr: true, ua: true, xk: true,
 };
 
 const hasClassifiedSupport = (country: string): boolean => {

@@ -25,8 +25,8 @@ export function getItemsPerPage(country) {
     ro: 52, ru: 50, // OLX, Avito
     rs: 30, se: 80, // Kupujem Prodajem, Tradera
     si: 31, sk: 20, // Bolha, Bazos
+    ch: 60, xk: 50, // Ricardo, Merrjep
     tr: 24, ua: 52, // LetGo, OLX
-    xk: 50, // Merrjep
   };
   return itemsPerPage[country] || 50;
 }
@@ -53,6 +53,14 @@ const lazyScrollByCountry = {
   ro: { enabled: true },
   ua: { enabled: true },
   ru: {
+    enabled: true,
+    maxPasses: 500,
+    scrollDelayMs: 500,
+    stableThreshold: 10,
+    scrollStepDivisor: 4,
+    decodeDelayMs: 5000,
+  },
+  ch: {
     enabled: true,
     maxPasses: 500,
     scrollDelayMs: 500,
@@ -99,6 +107,7 @@ export function getSelector(country) {
     se: 'div[id^="item-card-"][data-item-loaded="true"], div[id^="item-card-"][data-item-type], .item-card-module-scss-module__IIyH5q__itemCard',
     si: 'li.EntityList-item, li.EntityList-item article.entity-body, h3.entity-title a.link[href*="/oglas-"], li.EntityList-item a.link',
     sk: 'div.inzeraty.inzeratyflex, div.inzeraty.inzeratyflex .inzeratynadpis a, div.inzeraty.inzeratyflex .inzeratycena',
+    ch: 'a.style_link__Z7mz9[href*="/fr/a/"], a[href^="/fr/a/"][class*="style_link__"]',
     tr: 'div[data-testid="item-card"], div[data-testid="item-card"] a[href*="/item/"]',
     ua: 'div[data-cy="l-card"], div[data-testid="l-card"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
@@ -368,6 +377,11 @@ const searchUrlByCountry = {
     const term = normalize.plus(query);
     const crz = page > 1 ? `&crz=${(page - 1) * 20}` : '';
     return `https://${domain}/search.php?hledat=${term}${crz}`;
+  },
+
+  ch: ({ domain, query, page }) => {
+    const term = normalize.encoded(query);
+    return `https://${domain}/fr/s/${term}/?page=${page}`;
   },
 
   tr: ({ domain, query }) => {

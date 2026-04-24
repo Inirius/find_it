@@ -312,6 +312,7 @@ export function getExtractor(country) {
     se: extractTraderaData,
     si: extractBolhaData,
     sk: extractBazosData,
+    ch: extractRicardoData,
     tr: extractLetgoData,
     be: extract2ememainData,
     at: extractWillhabenData,
@@ -2528,6 +2529,72 @@ export async function extractPatuljakData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Patuljak item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractRicardoData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('a.style_link__Z7mz9[href*="/fr/a/"], a[href^="/fr/a/"][class*="style_link__"]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://${window.location.hostname}${value}`;
+      return value;
+    };
+
+    const imageFromStyle = (value) => {
+      if (!value) return null;
+      const m = value.match(/url\(["']?(.*?)["']?\)/i);
+      return m?.[1] || null;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const href = card.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const titleEl = card.querySelector('span[class*="MuiTypography-body1"]') || card.querySelector('img[alt]');
+        const title = cleanText(titleEl?.textContent || titleEl?.getAttribute('alt')) || null;
+
+        const imgEl = card.querySelector('img[src*="ricardostatic"], img[alt]');
+        const styleImageEl = card.querySelector('div[style*="background-image"]');
+        const image =
+          normalizeUrl(imgEl?.getAttribute('src')) ||
+          normalizeUrl(imageFromStyle(styleImageEl?.getAttribute('style'))) ||
+          null;
+
+        let price = null;
+        const allText = Array.from(card.querySelectorAll('span, div'))
+          .map((el) => cleanText(el.textContent))
+          .filter(Boolean);
+        const priceHit = allText.find((txt) => /^\d+[\d'.,]*$/.test(txt));
+        if (priceHit) {
+          price = `${priceHit} CHF`;
+        }
+
+        const timeHit = allText.find((txt) => /\b\d{1,2}:\d{2}\b/.test(txt)) || null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping: timeHit,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Ricardo item:', err.message);
       }
     });
 
