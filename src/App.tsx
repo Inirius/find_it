@@ -18,53 +18,82 @@ type Item = {
 // Helper functions for country-specific labels
 const getCountryName = (country: string): string => {
   const names: { [key: string]: string } = {
+    ad: 'Andorre',
     al: 'Albanie', am: 'Arménie', au: 'Australie', at: 'Autriche',
     ba: 'Bosnie-Herzégovine', be: 'Belgique', bg: 'Bulgarie', by: 'Biélorussie',
     cy: 'Chypre', cz: 'Tchéquie', de: 'Allemagne', dk: 'Danemark',
     ee: 'Estonie', es: 'Espagne', fi: 'Finlande', fr: 'France',
     gb: 'Royaume-Uni', ge: 'Géorgie', gr: 'Grèce', hr: 'Croatie',
     hu: 'Hongrie', ie: 'Irlande', is: 'Islande', it: 'Italie',
+    li: 'Liechtenstein', lu: 'Luxembourg',
     kz: 'Kazakhstan', lt: 'Lituanie', lv: 'Lettonie', mk: 'Macédoine du Nord',
-    md: 'Moldavie', mt: 'Malte', nl: 'Pays-Bas', no: 'Norvège',
+    mc: 'Monaco', md: 'Moldavie', me: 'Monténégro', mt: 'Malte', nl: 'Pays-Bas', no: 'Norvège',
     pl: 'Pologne', pt: 'Portugal', ro: 'Roumanie', ru: 'Russie',
+    sm: 'Saint-Marin', ch: 'Suisse',
     rs: 'Serbie', se: 'Suède', si: 'Slovénie', sk: 'Slovaquie',
-    tr: 'Turquie', ua: 'Ukraine', xk: 'Kosovo',
+    tr: 'Turquie', ua: 'Ukraine', va: 'Vatican', xk: 'Kosovo',
   };
   return names[country] || 'France';
 };
 
 const getCountryFlag = (country: string): string => {
   const flags: { [key: string]: string } = {
+    ad: '🇦🇩',
     al: '🇦🇱', am: '🇦🇲', au: '🇦🇺', at: '🇦🇹',
     ba: '🇧🇦', be: '🇧🇪', bg: '🇧🇬', by: '🇧🇾',
     cy: '🇨🇾', cz: '🇨🇿', de: '🇩🇪', dk: '🇩🇰',
     ee: '🇪🇪', es: '🇪🇸', fi: '🇫🇮', fr: '🇫🇷',
     gb: '🇬🇧', ge: '🇬🇪', gr: '🇬🇷', hr: '🇭🇷',
     hu: '🇭🇺', ie: '🇮🇪', is: '🇮🇸', it: '🇮🇹',
+    li: '🇱🇮', lu: '🇱🇺',
     kz: '🇰🇿', lt: '🇱🇹', lv: '🇱🇻', mk: '🇲🇰',
-    md: '🇲🇩', mt: '🇲🇹', nl: '🇳🇱', no: '🇳🇴',
+    mc: '🇲🇨', md: '🇲🇩', me: '🇲🇪', mt: '🇲🇹', nl: '🇳🇱', no: '🇳🇴',
     pl: '🇵🇱', pt: '🇵🇹', ro: '🇷🇴', ru: '🇷🇺',
+    sm: '🇸🇲', ch: '🇨🇭',
     rs: '🇷🇸', se: '🇸🇪', si: '🇸🇮', sk: '🇸🇰',
-    tr: '🇹🇷', ua: '🇺🇦', xk: '🇽🇰',
+    tr: '🇹🇷', ua: '🇺🇦', va: '🇻🇦', xk: '🇽🇰',
   };
   return flags[country] || '🇫🇷';
 };
 
+const IDENTIFIED_CLASSIFIED_SITE_BY_COUNTRY: { [key: string]: string } = {
+  al: 'Merrjep', am: 'List.am', au: 'Gumtree', at: 'Willhaben',
+  ba: 'OLX', be: '2ememain.be', bg: 'OLX', by: 'Kufar',
+  cy: 'Vendora', cz: 'Sbazar', de: 'Kleinanzeigen', dk: 'DBA',
+  ee: 'Osta', es: 'Wallapop', fi: 'Huuto', fr: 'LeBonCoin',
+  gb: 'Gumtree', ge: 'MyMarket', gr: 'Vendora', hr: 'Njuskalo',
+  hu: 'Jofogas', ie: 'DoneDeal', is: 'Bland', it: 'Subito',
+  kz: 'OLX', lt: 'Skelbiu', lv: 'SS.lv', mk: 'Pazar3',
+  mc: 'ClickMonaco', md: '999.md', mt: 'MaltaPark', nl: 'Marktplaats', no: 'Finn',
+  pl: 'OLX', pt: 'OLX', ro: 'OLX', ru: 'Avito',
+  rs: 'Kupujem Prodajem', se: 'Tradera', si: 'Bolha', sk: 'Bazos',
+  tr: 'LetGo', ua: 'OLX', ch: 'richardo.ch', xk: 'Merrjep',
+};
+
+const CLASSIFIED_SCRAPER_SUPPORTED_COUNTRIES: { [key: string]: boolean } = {
+  al: true, am: true, au: true, at: true,
+  ba: true, be: true, bg: true, by: true,
+  cy: true, cz: true, de: true, dk: true,
+  ee: true, es: true, fi: true, fr: true,
+  gb: true, ge: true, gr: true, hr: true,
+  hu: true, ie: true, is: true, it: true,
+  kz: true, lt: true, lv: true, mk: true,
+  md: true, mt: true, nl: true, no: true,
+  pl: true, pt: true, ro: true, ru: true,
+  rs: true, se: true, si: true, sk: true,
+  tr: true, ua: true, xk: true,
+};
+
+const hasClassifiedSupport = (country: string): boolean => {
+  return CLASSIFIED_SCRAPER_SUPPORTED_COUNTRIES[country] || false;
+};
+
+const hasIdentifiedClassifiedSite = (country: string): boolean => {
+  return Boolean(IDENTIFIED_CLASSIFIED_SITE_BY_COUNTRY[country]);
+};
+
 const getLeboncoinName = (country: string): string => {
-  const names: { [key: string]: string } = {
-    al: 'Merrjep', am: 'List.am', au: 'Gumtree', at: 'Willhaben',
-    ba: 'OLX', be: '2ememain.be', bg: 'OLX', by: 'Kufar',
-    cy: 'Vendora', cz: 'Sbazar', de: 'Kleinanzeigen', dk: 'DBA',
-    ee: 'Osta', es: 'Wallapop', fi: 'Huuto', fr: 'LeBonCoin',
-    gb: 'Gumtree', ge: 'MyMarket', gr: 'Vendora', hr: 'Njuskalo',
-    hu: 'Jofogas', ie: 'DoneDeal', is: 'Bland', it: 'Subito',
-    kz: 'OLX', lt: 'Skelbiu', lv: 'SS.lv', mk: 'Pazar3',
-    md: '999.md', mt: 'MaltaPark', nl: 'Marktplaats', no: 'Finn',
-    pl: 'OLX', pt: 'OLX', ro: 'OLX', ru: 'Avito',
-    rs: 'Kupujem Prodajem', se: 'Tradera', si: 'Bolha', sk: 'Bazos',
-    tr: 'LetGo', ua: 'OLX', xk: 'Merrjep',
-  };
-  return names[country] || 'LeBonCoin';
+  return IDENTIFIED_CLASSIFIED_SITE_BY_COUNTRY[country] || 'LeBonCoin';
 };
 
 const getVintedLabel = (country: string): string => {
@@ -81,11 +110,11 @@ function App() {
   
   // Menu sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sources, setSources] = useState({
-    ebay: true,
-    leboncoin: true,
-    vinted: true
-  });
+  const [sources, setSources] = useState(() => ({
+    ebay: hasEbaySupportBrowse('fr'),
+    leboncoin: hasClassifiedSupport('fr'),
+    vinted: hasVintedSupport('fr')
+  }));
   const [country, setCountry] = useState('fr'); // 'fr', 'de', or 'be'
   
   // Pagination states
@@ -116,6 +145,16 @@ function App() {
       if (sources.vinted && hasVintedSupport(country)) {
         fetchPromises.push(fetch(`${API_BASE_URL}/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}&country=${country}`));
         sourceOrder.push('vinted');
+      }
+
+      if (fetchPromises.length === 0) {
+        setEbayItems([]);
+        setLeboncoinItems([]);
+        setVintedItems([]);
+        setTotalEbay(0);
+        setTotalVinted(0);
+        setLoading(false);
+        return;
       }
       
       const responses = await Promise.all(fetchPromises);
@@ -290,7 +329,7 @@ function App() {
               const newCountry = e.target.value;
               const newSources = {
                 ebay: hasEbaySupportBrowse(newCountry),
-                leboncoin: true,
+                leboncoin: hasClassifiedSupport(newCountry),
                 vinted: hasVintedSupport(newCountry),
               };
               
@@ -313,8 +352,10 @@ function App() {
           >
             <option value="fr">🇫🇷 France</option>
             <option value="de">🇩🇪 Allemagne</option>
+            <option value="ad">🇦🇩 Andorre</option>
             <option value="at">🇦🇹 Autriche</option>
             <option value="be">🇧🇪 Belgique</option>
+            <option value="ch">🇨🇭 Suisse</option>
             <option value="es">🇪🇸 Espagne</option>
             <option value="nl">🇳🇱 Pays-Bas</option>
             <option value="pl">🇵🇱 Pologne</option>
@@ -336,21 +377,27 @@ function App() {
             <option value="is">🇮🇸 Islande</option>
             <option value="it">🇮🇹 Italie</option>
             <option value="kz">🇰🇿 Kazakhstan</option>
+            <option value="li">🇱🇮 Liechtenstein</option>
             <option value="lt">🇱🇹 Lituanie</option>
+            <option value="lu">🇱🇺 Luxembourg</option>
             <option value="lv">🇱🇻 Lettonie</option>
+            <option value="mc">🇲🇨 Monaco</option>
             <option value="mk">🇲🇰 Macédoine du Nord</option>
             <option value="md">🇲🇩 Moldavie</option>
+            <option value="me">🇲🇪 Monténégro</option>
             <option value="mt">🇲🇹 Malte</option>
             <option value="no">🇳🇴 Norvège</option>
             <option value="pt">🇵🇹 Portugal</option>
             <option value="ro">🇷🇴 Roumanie</option>
             <option value="ru">🇷🇺 Russie</option>
+            <option value="sm">🇸🇲 Saint-Marin</option>
             <option value="rs">🇷🇸 Serbie</option>
             <option value="se">🇸🇪 Suède</option>
             <option value="si">🇸🇮 Slovénie</option>
             <option value="sk">🇸🇰 Slovaquie</option>
             <option value="tr">🇹🇷 Turquie</option>
             <option value="ua">🇺🇦 Ukraine</option>
+            <option value="va">🇻🇦 Vatican</option>
             <option value="al">🇦🇱 Albanie</option>
             <option value="am">🇦🇲 Arménie</option>
             <option value="xk">🇽🇰 Kosovo</option>
@@ -369,15 +416,17 @@ function App() {
           </label>
         )}
 
-        <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
-          <input
-            type="checkbox"
-            checked={sources.leboncoin}
-            onChange={(e) => setSources({...sources, leboncoin: e.target.checked})}
-            style={{width: 16, height: 16, cursor: 'pointer'}}
-          />
-          <span>{getLeboncoinName(country)}</span>
-        </label>
+        {hasClassifiedSupport(country) && (
+          <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
+            <input
+              type="checkbox"
+              checked={sources.leboncoin}
+              onChange={(e) => setSources({...sources, leboncoin: e.target.checked})}
+              style={{width: 16, height: 16, cursor: 'pointer'}}
+            />
+            <span>{getLeboncoinName(country)}</span>
+          </label>
+        )}
 
         {hasVintedSupport(country) && (
           <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
@@ -424,6 +473,19 @@ function App() {
 
         {loading && <div>Chargement...</div>}
         {error && <div style={{color: 'red'}}><strong>Erreur:</strong> {error}</div>}
+
+        {!loading && !error && !hasEbaySupportBrowse(country) && !hasVintedSupport(country) && !hasIdentifiedClassifiedSite(country) && (
+          <div style={{ marginBottom: 12, color: '#d8d6d6', border: '1px solid #ccc', padding: 10, display: 'inline-block' }}>
+  Ce pays n'a actuellement aucun site de petites annonces référencé, vous pouvez contribuer en en ajoutant un ! <br />
+  Envoyer le nom du site à l'adresse : support@find-it.com
+</div>
+        )}
+
+        {!loading && !error && !hasEbaySupportBrowse(country) && !hasVintedSupport(country) && hasIdentifiedClassifiedSite(country) && !hasClassifiedSupport(country) && (
+          <div style={{marginBottom: 12, color: '#333'}}>
+            Un site de petites annonces est identifié pour ce pays ({getLeboncoinName(country)}), mais son intégration n'est pas encore disponible dans l'application.
+          </div>
+        )}
 
         {!loading && !error && ebayItems.length === 0 && leboncoinItems.length === 0 && vintedItems.length === 0 && (
         <div>Aucun résultat.</div>

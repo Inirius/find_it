@@ -37,6 +37,7 @@ export const VINTED_SUPPORTED_COUNTRIES = {
   ie: true,
   it: true,
   lt: true,
+  lu: true,
   lv: true,
   nl: true,
   pl: true,

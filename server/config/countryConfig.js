@@ -30,6 +30,8 @@ export function getCountryConfig(country) {
     lt: { domain: 'skelbiu.lt', name: 'Skelbiu' },
     lv: { domain: 'ss.lv', name: 'SS.lv' },
     mk: { domain: 'pazar3.mk', name: 'Pazar3' },
+      ch: { domain: 'richardo.ch', name: 'Richardo' },
+      mc: { domain: 'www.clickmonaco.com', name: 'ClickMonaco' },
     md: { domain: '999.md', name: '999.md' },
     mt: { domain: 'maltapark.com', name: 'MaltaPark' },
     nl: { domain: 'www.marktplaats.nl', name: 'Marktplaats' },
