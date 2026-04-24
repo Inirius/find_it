@@ -102,6 +102,7 @@ export function getSelector(country) {
     ua: 'div[data-cy="l-card"], div[data-testid="l-card"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     al: 'div.new.row.row-listing[data-product-id]',
+    xk: 'div.new.row.row-listing[data-product-id]',
     am: 'a.fav-item-info-container',
     pl: 'div[data-cy="l-card"]',
     pt: 'div[data-cy="l-card"], div[data-testid="l-card"]',
@@ -244,6 +245,11 @@ const searchUrlByCountry = {
   al: ({ domain, query, page }) => {
     const term = normalize.dash(query);
     return `https://${domain}/njoftime/q-${term}?Page=${page}`;
+  },
+
+  xk: ({ domain, query, page }) => {
+    const term = normalize.dash(query);
+    return `https://${domain}/shpallje/q-${term}?Page=${page}`;
   },
 
   am: ({ query, page }) => {

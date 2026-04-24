@@ -336,6 +336,7 @@ export function getExtractor(country) {
     lv: extractSsLvData,
     mk: extractPazar3Data,
     al: extractMerrjepAlData,
+    xk: extractMerrjepAlData,
     am: extractListAmData,
     md: extract999MdData,
     mt: extractMaltaParkData,
@@ -2211,7 +2212,7 @@ export async function extractMerrjepAlData(page_obj) {
       if (!value) return null;
       if (value.startsWith('http')) return value;
       if (value.startsWith('//')) return `https:${value}`;
-      if (value.startsWith('/')) return `https://www.merrjep.al${value}`;
+      if (value.startsWith('/')) return `https://${window.location.hostname}${value}`;
       return value;
     };
 
