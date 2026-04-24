@@ -18,7 +18,7 @@ export function getItemsPerPage(country) {
     is: 50, it: 30, // Bland, Subito
     kz: 50, lt: 24, // OLX, Skelbiu
     lv: 30, mk: 50, // SS.lv, Pazar3
-    mc: 40, // ClickMonaco
+    mc: 40, me: 20, // ClickMonaco, Patuljak
     md: 78, mt: 52, // 999.md, MaltaPark
     nl: 50, no: 54, // Marktplaats, Finn
     pl: 52, pt: 50, // OLX, OLX
@@ -113,6 +113,7 @@ export function getSelector(country) {
     lv: 'tr[id^="tr_"]',
     mk: 'div.new.row.row-listing',
     mc: 'div.background-ads-listing-container',
+    me: 'div.product__v--l0',
     lt: 'a.js-cfuser-link.standard-list-item, a.standard-list-item',
     ru: 'div[data-marker="item"]',
   };
@@ -131,6 +132,7 @@ const normalize = {
   plus: (q) => String(q).trim().replace(/\s+/g, '+'),
   dash: (q) => String(q).trim().replace(/\s+/g, '-'),
   encoded: (q) => encodeURIComponent(String(q).trim()),
+  b64: (q) => Buffer.from(String(q).trim(), 'utf8').toString('base64'),
 };
 
 // Country-specific search URL builders
@@ -330,6 +332,11 @@ const searchUrlByCountry = {
   mc: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/fr/annonces?keywords=${term}&page=${page}`;
+  },
+
+  me: ({ domain, query, page }) => {
+    const term = normalize.b64(query);
+    return `https://${domain}/pretraga/${page}/20/sve?pretraga=${encodeURIComponent(term)}`;
   },
 
   md: ({ domain, query, page }) => {

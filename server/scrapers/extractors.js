@@ -336,6 +336,7 @@ export function getExtractor(country) {
     lv: extractSsLvData,
     mk: extractPazar3Data,
     mc: extractClickMonacoData,
+    me: extractPatuljakData,
     al: extractMerrjepAlData,
     xk: extractMerrjepAlData,
     am: extractListAmData,
@@ -2467,6 +2468,66 @@ export async function extractClickMonacoData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting ClickMonaco item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractPatuljakData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div.product__v--l0');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://${window.location.hostname}${value}`;
+      return value;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const linkEl = card.querySelector('a[href*="/oglas/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const titleEl = card.querySelector('h5');
+        const imgEl = card.querySelector('img');
+        const title = cleanText(titleEl?.textContent || imgEl?.getAttribute('alt')) || null;
+
+        const image =
+          normalizeUrl(imgEl?.getAttribute('src')) ||
+          normalizeUrl(imgEl?.getAttribute('data-src')) ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('div.product__v--l1---tag_price');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        const infoItems = Array.from(card.querySelectorAll('ul.product__v--l1---right li'))
+          .map((el) => cleanText(el.textContent))
+          .filter(Boolean);
+        const shipping = infoItems.join(' • ') || null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Patuljak item:', err.message);
       }
     });
 
