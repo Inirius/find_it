@@ -78,7 +78,7 @@ const CLASSIFIED_SCRAPER_SUPPORTED_COUNTRIES: { [key: string]: boolean } = {
   gb: true, ge: true, gr: true, hr: true,
   hu: true, ie: true, is: true, it: true,
   kz: true, lt: true, lv: true, mk: true,
-  md: true, mt: true, nl: true, no: true,
+  mc: true, md: true, mt: true, nl: true, no: true,
   pl: true, pt: true, ro: true, ru: true,
   rs: true, se: true, si: true, sk: true,
   tr: true, ua: true, xk: true,

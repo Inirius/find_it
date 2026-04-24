@@ -335,6 +335,7 @@ export function getExtractor(country) {
     lt: extractSkelbIUData,
     lv: extractSsLvData,
     mk: extractPazar3Data,
+    mc: extractClickMonacoData,
     al: extractMerrjepAlData,
     xk: extractMerrjepAlData,
     am: extractListAmData,
@@ -2400,6 +2401,72 @@ export async function extract999MdData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting 999.md item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractClickMonacoData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div.background-ads-listing-container');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.clickmonaco.com${value}`;
+      return value;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const linkEl =
+          card.querySelector('a.content-block-listing[href]') ||
+          card.querySelector('a.picture-block-listing[href]') ||
+          card.querySelector('a[href*="/annonce/"]');
+
+        const href = linkEl?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const titleEl = card.querySelector('p.title-listing');
+        const title = cleanText(titleEl?.textContent) || null;
+
+        const imgEl = card.querySelector('a.picture-block-listing img') || card.querySelector('img');
+        const image =
+          normalizeUrl(imgEl?.getAttribute('src')) ||
+          normalizeUrl(imgEl?.getAttribute('data-src')) ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('span.price-listing');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        const locationEl = card.querySelector('p.localisation-listing');
+        const dateEl = card.querySelector('span.date-listing');
+        const shipping = [
+          cleanText(locationEl?.textContent) || null,
+          cleanText(dateEl?.textContent) || null,
+        ].filter(Boolean).join(' • ') || null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting ClickMonaco item:', err.message);
       }
     });
 

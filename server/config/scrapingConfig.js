@@ -18,6 +18,7 @@ export function getItemsPerPage(country) {
     is: 50, it: 30, // Bland, Subito
     kz: 50, lt: 24, // OLX, Skelbiu
     lv: 30, mk: 50, // SS.lv, Pazar3
+    mc: 40, // ClickMonaco
     md: 78, mt: 52, // 999.md, MaltaPark
     nl: 50, no: 54, // Marktplaats, Finn
     pl: 52, pt: 50, // OLX, OLX
@@ -111,6 +112,7 @@ export function getSelector(country) {
     mt: 'div.item.e3.e2, div.item[data-itemid]',
     lv: 'tr[id^="tr_"]',
     mk: 'div.new.row.row-listing',
+    mc: 'div.background-ads-listing-container',
     lt: 'a.js-cfuser-link.standard-list-item, a.standard-list-item',
     ru: 'div[data-marker="item"]',
   };
@@ -323,6 +325,11 @@ const searchUrlByCountry = {
   mk: ({ domain, query, page }) => {
     const term = normalize.dash(query);
     return `https://${domain}/ads/q-${term}?Page=${page}`;
+  },
+
+  mc: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/fr/annonces?keywords=${term}&page=${page}`;
   },
 
   md: ({ domain, query, page }) => {
