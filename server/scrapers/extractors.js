@@ -336,6 +336,7 @@ export function getExtractor(country) {
     lv: extractSsLvData,
     mk: extractPazar3Data,
     al: extractMerrjepAlData,
+    am: extractListAmData,
     md: extract999MdData,
     mt: extractMaltaParkData,
     no: extractFinnData,
@@ -2258,6 +2259,69 @@ export async function extractMerrjepAlData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Merrjep.al item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractListAmData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('a.fav-item-info-container');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.list.am${value}`;
+      return value;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const href = card.getAttribute('href') || card.querySelector('a[href]')?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const titleEl = card.querySelector('.dltitle .pt');
+        const title = cleanText(titleEl?.textContent) || null;
+
+        const imgEl = card.querySelector('img');
+        const image =
+          normalizeUrl(imgEl?.getAttribute('data-original')) ||
+          normalizeUrl(imgEl?.getAttribute('src')) ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('.ad-info-line-wrapper .p');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        const locationEl = card.querySelector('.at');
+        const categoryEl = card.querySelector('.c');
+        const dateEl = card.querySelector('.d');
+        const shipping = [
+          cleanText(locationEl?.textContent) || null,
+          cleanText(categoryEl?.textContent) || null,
+          cleanText(dateEl?.textContent) || null,
+        ].filter(Boolean).join(' • ') || null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting List.am item:', err.message);
       }
     });
 

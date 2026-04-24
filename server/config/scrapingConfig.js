@@ -5,7 +5,7 @@ import { getCurrency } from './currencyConfig.js';
 export function getItemsPerPage(country) {
   const itemsPerPage = {
     al: 50, de: 50, // Merrjep, Kleinanzeigen
-    am: 50, at: 30, // List.am, Willhaben
+    am: 101, at: 30, // List.am, Willhaben
     au: 50, ba: 50, // Gumtree, OLX
     be: 50, bg: 42, // 2ememain.be, OLX
     by: 50, cy: 50, // Kufar, Vendora
@@ -102,6 +102,7 @@ export function getSelector(country) {
     ua: 'div[data-cy="l-card"], div[data-testid="l-card"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
     al: 'div.new.row.row-listing[data-product-id]',
+    am: 'a.fav-item-info-container',
     pl: 'div[data-cy="l-card"]',
     pt: 'div[data-cy="l-card"], div[data-testid="l-card"]',
     ro: 'div[data-cy="l-card"], div[data-testid="l-card"]',
@@ -243,6 +244,11 @@ const searchUrlByCountry = {
   al: ({ domain, query, page }) => {
     const term = normalize.dash(query);
     return `https://${domain}/njoftime/q-${term}?Page=${page}`;
+  },
+
+  am: ({ query, page }) => {
+    const term = normalize.plus(query);
+    return `https://www.list.am/category?q=${term}&pg=${page}`;
   },
 
   ee: ({ query, page }) => {
