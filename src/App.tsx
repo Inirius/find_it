@@ -350,57 +350,57 @@ function App() {
               fontSize: '14px'
             }}
           >
-            <option value="fr">🇫🇷 France</option>
+            <option value="al">🇦🇱 Albanie</option>
             <option value="de">🇩🇪 Allemagne</option>
             <option value="ad">🇦🇩 Andorre</option>
+            <option value="am">🇦🇲 Arménie</option>
+            <option value="au">🇦🇺 Australie</option>
             <option value="at">🇦🇹 Autriche</option>
             <option value="be">🇧🇪 Belgique</option>
-            <option value="ch">🇨🇭 Suisse</option>
-            <option value="es">🇪🇸 Espagne</option>
-            <option value="nl">🇳🇱 Pays-Bas</option>
-            <option value="pl">🇵🇱 Pologne</option>
-            <option value="au">🇦🇺 Australie</option>
+            <option value="by">🇧🇾 Biélorussie</option>
             <option value="ba">🇧🇦 Bosnie-Herzégovine</option>
             <option value="bg">🇧🇬 Bulgarie</option>
-            <option value="by">🇧🇾 Biélorussie</option>
             <option value="cy">🇨🇾 Chypre</option>
-            <option value="cz">🇨🇿 Tchéquie</option>
+            <option value="hr">🇭🇷 Croatie</option>
             <option value="dk">🇩🇰 Danemark</option>
+            <option value="es">🇪🇸 Espagne</option>
             <option value="ee">🇪🇪 Estonie</option>
             <option value="fi">🇫🇮 Finlande</option>
-            <option value="gb">🇬🇧 Royaume-Uni</option>
+            <option value="fr">🇫🇷 France</option>
             <option value="ge">🇬🇪 Géorgie</option>
             <option value="gr">🇬🇷 Grèce</option>
-            <option value="hr">🇭🇷 Croatie</option>
             <option value="hu">🇭🇺 Hongrie</option>
             <option value="ie">🇮🇪 Irlande</option>
             <option value="is">🇮🇸 Islande</option>
             <option value="it">🇮🇹 Italie</option>
             <option value="kz">🇰🇿 Kazakhstan</option>
+            <option value="xk">🇽🇰 Kosovo</option>
+            <option value="lv">🇱🇻 Lettonie</option>
             <option value="li">🇱🇮 Liechtenstein</option>
             <option value="lt">🇱🇹 Lituanie</option>
             <option value="lu">🇱🇺 Luxembourg</option>
-            <option value="lv">🇱🇻 Lettonie</option>
-            <option value="mc">🇲🇨 Monaco</option>
             <option value="mk">🇲🇰 Macédoine du Nord</option>
-            <option value="md">🇲🇩 Moldavie</option>
-            <option value="me">🇲🇪 Monténégro</option>
             <option value="mt">🇲🇹 Malte</option>
+            <option value="md">🇲🇩 Moldavie</option>
+            <option value="mc">🇲🇨 Monaco</option>
+            <option value="me">🇲🇪 Monténégro</option>
             <option value="no">🇳🇴 Norvège</option>
+            <option value="nl">🇳🇱 Pays-Bas</option>
+            <option value="pl">🇵🇱 Pologne</option>
             <option value="pt">🇵🇹 Portugal</option>
             <option value="ro">🇷🇴 Roumanie</option>
+            <option value="gb">🇬🇧 Royaume-Uni</option>
             <option value="ru">🇷🇺 Russie</option>
             <option value="sm">🇸🇲 Saint-Marin</option>
             <option value="rs">🇷🇸 Serbie</option>
-            <option value="se">🇸🇪 Suède</option>
-            <option value="si">🇸🇮 Slovénie</option>
             <option value="sk">🇸🇰 Slovaquie</option>
+            <option value="si">🇸🇮 Slovénie</option>
+            <option value="se">🇸🇪 Suède</option>
+            <option value="ch">🇨🇭 Suisse</option>
+            <option value="cz">🇨🇿 Tchéquie</option>
             <option value="tr">🇹🇷 Turquie</option>
             <option value="ua">🇺🇦 Ukraine</option>
             <option value="va">🇻🇦 Vatican</option>
-            <option value="al">🇦🇱 Albanie</option>
-            <option value="am">🇦🇲 Arménie</option>
-            <option value="xk">🇽🇰 Kosovo</option>
           </select>
         </div>
         
