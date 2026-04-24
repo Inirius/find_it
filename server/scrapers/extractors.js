@@ -335,6 +335,7 @@ export function getExtractor(country) {
     lt: extractSkelbIUData,
     lv: extractSsLvData,
     mk: extractPazar3Data,
+    al: extractMerrjepAlData,
     md: extract999MdData,
     mt: extractMaltaParkData,
     no: extractFinnData,
@@ -2191,6 +2192,72 @@ export async function extractPazar3Data(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Pazar3 item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractMerrjepAlData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('div.new.row.row-listing[data-product-id]');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.merrjep.al${value}`;
+      return value;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const titleEl =
+          card.querySelector('h2 a.Link_vis[href]') ||
+          card.querySelector('a.Link_vis[href]') ||
+          card.querySelector('h2 a[href*="/njoftim/"]') ||
+          card.querySelector('a[href*="/njoftim/"]');
+
+        const title = cleanText(titleEl?.getAttribute('title') || titleEl?.textContent) || null;
+        const href = titleEl?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        const imgEl =
+          card.querySelector('.span2-ad-img-list img') ||
+          card.querySelector('img');
+        const image =
+          normalizeUrl(imgEl?.getAttribute('data-src')) ||
+          normalizeUrl(imgEl?.getAttribute('src')) ||
+          null;
+
+        let price = null;
+        const priceEl = card.querySelector('p.list-price');
+        if (priceEl?.textContent) {
+          price = cleanText(priceEl.textContent);
+        }
+
+        const locationEl = card.querySelector('.title a[href^="/njoftime/"]') || card.querySelector('.title a[href*="/q-"]');
+        const dateEl = card.querySelector('.title .pull-right');
+        const location = cleanText(locationEl?.textContent) || null;
+        const date = cleanText(dateEl?.textContent) || null;
+        const shipping = [location, date].filter(Boolean).join(' • ') || null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Merrjep.al item:', err.message);
       }
     });
 

@@ -101,6 +101,7 @@ export function getSelector(country) {
     tr: 'div[data-testid="item-card"], div[data-testid="item-card"] a[href*="/item/"]',
     ua: 'div[data-cy="l-card"], div[data-testid="l-card"]',
     nl: 'li.hz-Listing, .hz-Listing-coverLink-new',
+    al: 'div.new.row.row-listing[data-product-id]',
     pl: 'div[data-cy="l-card"]',
     pt: 'div[data-cy="l-card"], div[data-testid="l-card"]',
     ro: 'div[data-cy="l-card"], div[data-testid="l-card"]',
@@ -237,6 +238,11 @@ const searchUrlByCountry = {
   at: ({ domain, query, page }) => {
     const term = normalize.encoded(query);
     return `https://${domain}/iad/kaufen-und-verkaufen/marktplatz?keyword=${term}&page=${page}`;
+  },
+
+  al: ({ domain, query, page }) => {
+    const term = normalize.dash(query);
+    return `https://${domain}/njoftime/q-${term}?Page=${page}`;
   },
 
   ee: ({ query, page }) => {
