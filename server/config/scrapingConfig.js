@@ -265,15 +265,15 @@ const searchUrlByCountry = {
     return `https://${domain}/shpallje/q-${term}?Page=${page}`;
   },
 
-  am: ({ query, page }) => {
+  am: ({ domain, query, page }) => {
     const term = normalize.plus(query);
-    return `https://www.list.am/category?q=${term}&pg=${page}`;
+    return `https://${domain}/category?q=${term}&pg=${page}`;
   },
 
-  ee: ({ query, page }) => {
+  ee: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     const start = ((page - 1) * 120) + 1;
-    return `https://osta.ee/?fuseaction=search.search&q[q]=${term}&start=${start}`;
+    return `https://${domain}/?fuseaction=search.search&q[q]=${term}&start=${start}`;
   },
 
   fi: ({ domain, query, page }) => {
