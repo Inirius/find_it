@@ -15,6 +15,11 @@ type Item = {
   shipping: string | null;
 };
 
+type ClassifiedSite = {
+  id: string;
+  label: string;
+};
+
 // Helper functions for country-specific labels
 const getCountryName = (country: string): string => {
   const names: { [key: string]: string } = {
@@ -96,6 +101,26 @@ const getLeboncoinName = (country: string): string => {
   return IDENTIFIED_CLASSIFIED_SITE_BY_COUNTRY[country] || 'LeBonCoin';
 };
 
+const CLASSIFIED_SITES_BY_COUNTRY: Record<string, ClassifiedSite[]> = {
+  fi: [
+    { id: 'huuto', label: 'Huuto' },
+    { id: 'tori', label: 'Tori' },
+  ],
+  ee: [
+    { id: 'osta', label: 'Osta' },
+    { id: 'okidoki', label: 'Okidoki' },
+  ],
+};
+
+const getClassifiedSites = (country: string): ClassifiedSite[] => {
+  const sites = CLASSIFIED_SITES_BY_COUNTRY[country];
+  if (sites && sites.length > 0) {
+    return sites;
+  }
+
+  return [{ id: 'default', label: getLeboncoinName(country) }];
+};
+
 const getVintedLabel = (country: string): string => {
   return `Vinted (${country.toUpperCase()})`;
 };
@@ -103,7 +128,7 @@ const getVintedLabel = (country: string): string => {
 function App() {
   const [query, setQuery] = useState('drone');
   const [ebayItems, setEbayItems] = useState<Item[]>([]);
-  const [leboncoinItems, setLeboncoinItems] = useState<Item[]>([]);
+  const [leboncoinItemsBySite, setLeboncoinItemsBySite] = useState<Record<string, Item[]>>({});
   const [vintedItems, setVintedItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -116,6 +141,7 @@ function App() {
     vinted: hasVintedSupport('fr')
   }));
   const [country, setCountry] = useState('fr'); // 'fr', 'de', or 'be'
+  const [selectedLbcSites, setSelectedLbcSites] = useState<string[]>(() => getClassifiedSites('fr').map((site) => site.id));
   
   // Pagination states
   const [pageEbay, setPageEbay] = useState(1);
@@ -125,6 +151,12 @@ function App() {
   // Total items/pages for each source
   const [totalEbay, setTotalEbay] = useState(0);
   const [totalVinted, setTotalVinted] = useState(0);
+
+  const currentClassifiedSites = getClassifiedSites(country);
+  const activeLbcSiteIds = selectedLbcSites.filter((siteId) => currentClassifiedSites.some((site) => site.id === siteId));
+  const isMultiClassifiedCountry = currentClassifiedSites.length > 1;
+  const leboncoinEnabled = isMultiClassifiedCountry ? activeLbcSiteIds.length > 0 : sources.leboncoin;
+  const totalLeboncoinItems = activeLbcSiteIds.reduce((sum, siteId) => sum + (leboncoinItemsBySite[siteId]?.length || 0), 0);
 
   const fetchItems = async (q: string, pEbay = 1, pLbc = 1, pVinted = 1) => {
     setLoading(true);
@@ -138,9 +170,15 @@ function App() {
         fetchPromises.push(fetch(`${API_BASE_URL}/api/ebay/browse?query=${encodeURIComponent(q)}&page=${pEbay}&country=${country}`));
         sourceOrder.push('ebay');
       }
-      if (sources.leboncoin) {
-        fetchPromises.push(fetch(`${API_BASE_URL}/api/leboncoin/search?query=${encodeURIComponent(q)}&page=${pLbc}&country=${country}`));
-        sourceOrder.push('leboncoin');
+      if (leboncoinEnabled && activeLbcSiteIds.length > 0) {
+        activeLbcSiteIds.forEach((siteId) => {
+          fetchPromises.push(
+            fetch(
+              `${API_BASE_URL}/api/leboncoin/search?query=${encodeURIComponent(q)}&page=${pLbc}&country=${country}&site=${encodeURIComponent(siteId)}`
+            )
+          );
+          sourceOrder.push(`leboncoin:${siteId}`);
+        });
       }
       if (sources.vinted && hasVintedSupport(country)) {
         fetchPromises.push(fetch(`${API_BASE_URL}/api/vinted/search?query=${encodeURIComponent(q)}&page=${pVinted}&country=${country}`));
@@ -149,7 +187,7 @@ function App() {
 
       if (fetchPromises.length === 0) {
         setEbayItems([]);
-        setLeboncoinItems([]);
+        setLeboncoinItemsBySite({});
         setVintedItems([]);
         setTotalEbay(0);
         setTotalVinted(0);
@@ -166,12 +204,11 @@ function App() {
       });
       
       const ebayRes = responseMap['ebay'] || null;
-      const leboncoinRes = responseMap['leboncoin'] || null;
       const vintedRes = responseMap['vinted'] || null;
 
       let ebayData = null;
-      let leboncoinData = null;
       let vintedData = null;
+      let hasLeboncoinSuccess = false;
 
       if (ebayRes && ebayRes.ok) {
         ebayData = await ebayRes.json();
@@ -187,28 +224,36 @@ function App() {
         setTotalEbay(0);
       }
 
-      if (leboncoinRes && leboncoinRes.ok) {
-        leboncoinData = await leboncoinRes.json();
-        if (leboncoinData.success) {
-          const rawItems: Item[] = leboncoinData.items || [];
-          const normalizedItems = country === 'se'
-            ? rawItems.map((item) => {
-                const imageUrl = item.image || '';
-                const shouldProxy = /^https?:\/\/img\.tradera\.net\//i.test(imageUrl);
-                return {
-                  ...item,
-                  image: shouldProxy ? `${API_BASE_URL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}` : item.image,
-                };
-              })
-            : rawItems;
+      const leboncoinBySite: Record<string, Item[]> = {};
+      for (const siteId of activeLbcSiteIds) {
+        const siteKey = `leboncoin:${siteId}`;
+        const leboncoinRes = responseMap[siteKey] || null;
 
-          setLeboncoinItems(normalizedItems);
+        if (leboncoinRes && leboncoinRes.ok) {
+          const leboncoinData = await leboncoinRes.json();
+          if (leboncoinData.success) {
+            const rawItems: Item[] = leboncoinData.items || [];
+            const normalizedItems = country === 'se'
+              ? rawItems.map((item) => {
+                  const imageUrl = item.image || '';
+                  const shouldProxy = /^https?:\/\/img\.tradera\.net\//i.test(imageUrl);
+                  return {
+                    ...item,
+                    image: shouldProxy ? `${API_BASE_URL}/api/image-proxy?url=${encodeURIComponent(imageUrl)}` : item.image,
+                  };
+                })
+              : rawItems;
+
+            leboncoinBySite[siteId] = normalizedItems;
+            hasLeboncoinSuccess = true;
+          } else {
+            leboncoinBySite[siteId] = [];
+          }
         } else {
-          setLeboncoinItems([]);
+          leboncoinBySite[siteId] = [];
         }
-      } else {
-        setLeboncoinItems([]);
       }
+      setLeboncoinItemsBySite(leboncoinBySite);
 
       if (vintedRes && vintedRes.ok) {
         vintedData = await vintedRes.json();
@@ -227,7 +272,7 @@ function App() {
       // Show error only if all selected sources failed
       const selectedSourcesFailed = 
         (!sources.ebay || !ebayData?.success) &&
-        (!sources.leboncoin || !leboncoinData?.success) &&
+        (!leboncoinEnabled || activeLbcSiteIds.length === 0 || !hasLeboncoinSuccess) &&
         (!sources.vinted || !vintedData?.success);
       
       if (selectedSourcesFailed) {
@@ -235,7 +280,7 @@ function App() {
       }
     } catch (err: any) {
       setEbayItems([]);
-      setLeboncoinItems([]);
+      setLeboncoinItemsBySite({});
       setVintedItems([]);
       setTotalEbay(0);
       setTotalVinted(0);
@@ -247,7 +292,7 @@ function App() {
 
   useEffect(() => {
     fetchItems(query, pageEbay, pageLbc, pageVinted);
-  }, [pageEbay, pageLbc, pageVinted, country]);
+  }, [pageEbay, pageLbc, pageVinted, country, selectedLbcSites]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -335,6 +380,7 @@ function App() {
               
               setCountry(newCountry);
               setSources(newSources);
+              setSelectedLbcSites(getClassifiedSites(newCountry).map((site) => site.id));
               setPageEbay(1);
               setPageLbc(1);
               setPageVinted(1);
@@ -417,15 +463,41 @@ function App() {
         )}
 
         {hasClassifiedSupport(country) && (
-          <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
-            <input
-              type="checkbox"
-              checked={sources.leboncoin}
-              onChange={(e) => setSources({...sources, leboncoin: e.target.checked})}
-              style={{width: 16, height: 16, cursor: 'pointer'}}
-            />
-            <span>{getLeboncoinName(country)}</span>
-          </label>
+          <div style={{ marginBottom: 12 }}>
+            {!isMultiClassifiedCountry && (
+              <label style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
+                <input
+                  type="checkbox"
+                  checked={sources.leboncoin}
+                  onChange={(e) => setSources({...sources, leboncoin: e.target.checked})}
+                  style={{width: 16, height: 16, cursor: 'pointer'}}
+                />
+                <span>{getLeboncoinName(country)}</span>
+              </label>
+            )}
+
+            {isMultiClassifiedCountry && (
+              <div>
+                {currentClassifiedSites.map((site) => (
+                  <label key={site.id} style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
+                    <input
+                      type="checkbox"
+                      checked={activeLbcSiteIds.includes(site.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedLbcSites((prev) => prev.includes(site.id) ? prev : [...prev, site.id]);
+                        } else {
+                          setSelectedLbcSites((prev) => prev.filter((value) => value !== site.id));
+                        }
+                      }}
+                      style={{width: 16, height: 16, cursor: 'pointer'}}
+                    />
+                    <span>{site.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {hasVintedSupport(country) && (
@@ -487,14 +559,18 @@ function App() {
           </div>
         )}
 
-        {!loading && !error && ebayItems.length === 0 && leboncoinItems.length === 0 && vintedItems.length === 0 && (
+        {!loading && !error && ebayItems.length === 0 && totalLeboncoinItems === 0 && vintedItems.length === 0 && (
         <div>Aucun résultat.</div>
       )}
 
       {(() => {
-        const visibleColumns = Object.values(sources).filter(Boolean).length;
-        const gridTemplateColumns = visibleColumns === 1 ? '1fr' : visibleColumns === 2 ? 'repeat(2, minmax(0, 1fr))' : visibleColumns === 3 ? 'repeat(3, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))';
-        const maxWidth = visibleColumns === 1 ? '400px' : visibleColumns === 2 ? '800px' : visibleColumns === 3 ? '1200px' : undefined;
+        const visibleColumns =
+          (sources.ebay ? 1 : 0) +
+          (leboncoinEnabled ? activeLbcSiteIds.length : 0) +
+          (sources.vinted ? 1 : 0);
+        const displayColumns = Math.max(1, visibleColumns);
+        const gridTemplateColumns = displayColumns === 1 ? '1fr' : displayColumns === 2 ? 'repeat(2, minmax(0, 1fr))' : displayColumns === 3 ? 'repeat(3, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))';
+        const maxWidth = displayColumns === 1 ? '400px' : displayColumns === 2 ? '800px' : displayColumns === 3 ? '1200px' : undefined;
         return (
           <div style={{position: 'relative', paddingTop: 8, width: '100%'}}>
             {/* Voile de chargement */}
@@ -533,25 +609,31 @@ function App() {
           </div>
         )}
 
-        {sources.leboncoin && (
-          <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
-            <h2 style={{fontSize: '18px', marginBottom: 0}}>{getLeboncoinName(country)}</h2>
-            {leboncoinItems.map((item, index) => (
-              <LeboncoinCard
-                key={index}
-                title={item.title}
-                url={item.url}
-                image={item.image}
-                alt={item.alt}
-                price={item.price}
-                shipping={item.shipping}
-              />
-            ))}
-            {leboncoinItems.length === 0 && !loading && (
-              <p style={{color: '#999'}}>Aucun résultat {getLeboncoinName(country)}</p>
-            )}
-          </div>
-        )}
+        {leboncoinEnabled && activeLbcSiteIds.map((siteId) => {
+          const site = currentClassifiedSites.find((entry) => entry.id === siteId);
+          const items = leboncoinItemsBySite[siteId] || [];
+          const siteLabel = site?.label || getLeboncoinName(country);
+
+          return (
+            <div key={siteId} style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
+              <h2 style={{fontSize: '18px', marginBottom: 0}}>{siteLabel}</h2>
+              {items.map((item, index) => (
+                <LeboncoinCard
+                  key={`${siteId}-${index}`}
+                  title={item.title}
+                  url={item.url}
+                  image={item.image}
+                  alt={item.alt}
+                  price={item.price}
+                  shipping={item.shipping}
+                />
+              ))}
+              {items.length === 0 && !loading && (
+                <p style={{color: '#999'}}>Aucun résultat {siteLabel}</p>
+              )}
+            </div>
+          );
+        })}
 
         {sources.vinted && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
@@ -578,7 +660,7 @@ function App() {
       })()}
 
       {/* Navigation globale pour tous les sites */}
-      {(ebayItems.length > 0 || leboncoinItems.length > 0 || vintedItems.length > 0) && (
+      {(ebayItems.length > 0 || totalLeboncoinItems > 0 || vintedItems.length > 0) && (
         <div style={{display: 'flex', gap: 12, justifyContent: 'center', marginTop: 24, paddingBottom: 16}}>
           <button 
             disabled={pageEbay === 1 && pageLbc === 1 && pageVinted === 1}
@@ -604,7 +686,7 @@ function App() {
             disabled={
               (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
               (pageVinted * 40 >= totalVinted || totalVinted === 0) &&
-              leboncoinItems.length === 0
+              totalLeboncoinItems === 0
             }
             onClick={() => {
               setPageEbay(pageEbay + 1);
@@ -618,12 +700,12 @@ function App() {
               cursor: (
                 (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
                 (pageVinted * 40 >= totalVinted || totalVinted === 0) && 
-                leboncoinItems.length === 0
+                totalLeboncoinItems === 0
               ) ? 'not-allowed' : 'pointer',
               opacity: (
                 (pageEbay * 40 >= totalEbay || totalEbay === 0) && 
                 (pageVinted * 40 >= totalVinted || totalVinted === 0) && 
-                leboncoinItems.length === 0
+                totalLeboncoinItems === 0
               ) ? 0.5 : 1
             }}
           >

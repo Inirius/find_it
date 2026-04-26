@@ -326,7 +326,9 @@ export function getExtractor(country) {
     gb: extractGumtreeUkData,
     by: extractKufarData,
     ee: extractOstaData,
+    ee1: extractOkidokiData,
     fi: extractHuutoData,
+    fi1: extractFinnData,
     ge: extractMyMarketData,
     hu: extractJofogasData,
     it: extractSubitoData,
@@ -1346,6 +1348,75 @@ export async function extractOstaData(page_obj) {
         }
       } catch (err) {
         console.warn('Error extracting Osta.ee item:', err.message);
+      }
+    });
+
+    return results;
+  });
+}
+
+export async function extractOkidokiData(page_obj) {
+  return await page_obj.evaluate(() => {
+    const results = [];
+    const cards = document.querySelectorAll('li.classifieds__item, li[class*="classifieds__item"], li.offer-card');
+
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
+
+    const toAbsoluteUrl = (href) => {
+      if (!href) return null;
+      if (href.startsWith('http')) return href;
+      if (href.startsWith('//')) return `https:${href}`;
+      if (href.startsWith('/')) return `https://www.okidoki.ee${href}`;
+      return `https://www.okidoki.ee/${href.replace(/^\/+/, '')}`;
+    };
+
+    cards.forEach((card) => {
+      try {
+        const titleLink =
+          card.querySelector('a.offer-card__title-link[href]') ||
+          card.querySelector('a[href*="/item/"]') ||
+          card.querySelector('a[href]');
+
+        const href = titleLink?.getAttribute('href');
+        const url = toAbsoluteUrl(href);
+
+        const title = cleanText(
+          titleLink?.textContent ||
+          titleLink?.getAttribute('title') ||
+          card.querySelector('.offer-card__title-link')?.textContent
+        ) || null;
+
+        const imgEl =
+          card.querySelector('.offer-card__image-link img') ||
+          card.querySelector('img');
+        const image =
+          imgEl?.getAttribute('src') ||
+          imgEl?.getAttribute('data-src') ||
+          imgEl?.getAttribute('srcset')?.split(',')[0]?.trim()?.split(' ')[0] ||
+          null;
+
+        const price = cleanText(
+          card.querySelector('.offer-card__price-value')?.textContent ||
+          card.querySelector('[class*="price"]')?.textContent
+        ) || null;
+
+        const shipping = cleanText(
+          card.querySelector('.offer-card__date')?.textContent ||
+          card.querySelector('[class*="date"]')?.textContent
+        ) || null;
+
+        if (title && url) {
+          results.push({
+            title,
+            url,
+            image,
+            alt: title,
+            price,
+            shipping,
+          });
+        }
+      } catch (err) {
+        console.warn('Error extracting Okidoki item:', err.message);
       }
     });
 
@@ -2720,6 +2791,7 @@ export async function extractFinnData(page_obj) {
   return await page_obj.evaluate(() => {
     const results = [];
     const cards = document.querySelectorAll('article.sf-search-ad, article[class*="sf-search-ad"]');
+    const currentOrigin = window.location.origin || 'https://www.finn.no';
 
     const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
 
@@ -2727,7 +2799,7 @@ export async function extractFinnData(page_obj) {
       if (!value) return null;
       if (value.startsWith('http')) return value;
       if (value.startsWith('//')) return `https:${value}`;
-      if (value.startsWith('/')) return `https://www.finn.no${value}`;
+      if (value.startsWith('/')) return `${currentOrigin}${value}`;
       return value;
     };
 
@@ -2741,7 +2813,11 @@ export async function extractFinnData(page_obj) {
         const href = linkEl?.getAttribute('href');
         const url = normalizeUrl(href);
 
-        const title = cleanText(linkEl?.textContent) || null;
+        const titleEl =
+          card.querySelector('h2') ||
+          card.querySelector('h3') ||
+          card.querySelector('[class*="line-clamp"]');
+        const title = cleanText(titleEl?.textContent || linkEl?.textContent) || null;
 
         const activeImage = card.querySelector('img.sf-ad-carousel-desktop-item--active');
         const imgEl = activeImage || card.querySelector('img.sf-ad-carousel-desktop-item') || card.querySelector('img');
@@ -2751,15 +2827,19 @@ export async function extractFinnData(page_obj) {
           null;
 
         let price = null;
-        const priceEl = card.querySelector('div.font-bold span') || card.querySelector('span');
+        const priceEl = card.querySelector('div.flex.justify-between span') || card.querySelector('div.font-bold span') || card.querySelector('span');
         if (priceEl?.textContent) {
           const priceText = cleanText(priceEl.textContent);
           const match = priceText.match(/([\d\s.,]+\s*kr\.?)/i);
-          price = match ? cleanText(match[1]) : null;
+          if (match) {
+            price = cleanText(match[1]);
+          } else if (/\d/.test(priceText)) {
+            price = priceText;
+          }
         }
 
         let shipping = null;
-        const metaSpans = Array.from(card.querySelectorAll('.text-xs.s-text-subtle span'))
+        const metaSpans = Array.from(card.querySelectorAll('.text-xs.s-text-subtle span, .text-xs.s-text-subtle'))
           .map((el) => cleanText(el.textContent))
           .filter(Boolean);
         if (metaSpans.length > 0) {

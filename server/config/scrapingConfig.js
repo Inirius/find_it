@@ -10,8 +10,8 @@ export function getItemsPerPage(country) {
     be: 50, bg: 42, // 2ememain.be, OLX
     by: 50, cy: 50, // Kufar, Vendora
     cz: 50, dk: 50, // Sbazar, DBA
-    ee: 120, es: 40, // Osta, Wallapop
-    fi: 24, fr: 37, // Huuto, LeBonCoin
+    ee: 120, ee1: 54, es: 40, // Osta, Okidoki, Wallapop
+    fi: 24, fi1: 54, fr: 37, // Huuto, Tori, LeBonCoin
     gb: 25, ge: 50, // Gumtree, MyMarket
     gr: 36, hr: 32, // Vendora, Njuskalo
     hu: 36, ie: 30, // Jofogas, DoneDeal
@@ -100,8 +100,10 @@ export function getSelector(country) {
     be: 'li.hz-Listing, .hz-Listing-coverLink-new',
     at: 'a[href*="/iad/kaufen-und-verkaufen/d/"], div[id*="search-result-entry"]',
     ee: 'li.col-md-3.mb-custom-thumb-fancy, figure.offer-thumb.offer-thumb__fancy',
+    ee1: 'li.classifieds__item, li[class*="classifieds__item"], li.offer-card',
     es: 'a[href*="/item/"]',
     fi: 'a[href*="/kohteet/"]',
+    fi1: 'article.sf-search-ad, article[class*="sf-search-ad"]',
     ge: 'a[href*="/pr/"] article[data-testid="product-card"], article[data-testid="product-card"]',
     no: 'article.sf-search-ad, article[class*="sf-search-ad"]',
     se: 'div[id^="item-card-"][data-item-loaded="true"], div[id^="item-card-"][data-item-type], .item-card-module-scss-module__IIyH5q__itemCard',
@@ -276,9 +278,19 @@ const searchUrlByCountry = {
     return `https://${domain}/?fuseaction=search.search&q[q]=${term}&start=${start}`;
   },
 
+  ee1: ({ domain, query, page }) => {
+    const term = normalize.encoded(query);
+    return `https://${domain}/buy/all/?query=${term}&p=${page}`;
+  },
+
   fi: ({ domain, query, page }) => {
     const term = normalize.plus(query);
     return `https://${domain}/haku?q=${term}&page=${page}`;
+  },
+
+  fi1: ({ domain, query, page }) => {
+    const term = normalize.plus(query);
+    return `https://${domain}/recommerce/forsale/search?page=${page}&q=${term}`;
   },
 
   ge: ({ domain, query, page }) => {

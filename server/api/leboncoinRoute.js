@@ -22,9 +22,10 @@ export function setupLeboncoinRoute(app) {
   app.get('/api/leboncoin/search', async (req, res) => {
     let browser;
     try {
-      const { query = 'drone', page = '1', country = 'fr', debugHtml = '1', trExcludeSponsored = '0' } = req.query;
+      const { query = 'drone', page = '1', country = 'fr', site = 'default', debugHtml = '1', trExcludeSponsored = '0' } = req.query;
       const pageNum = Math.max(1, parseInt(page) || 1);
       const shouldExcludeTrSponsored = ['1', 'true', 'yes'].includes(String(trExcludeSponsored).toLowerCase());
+      const selectedSite = String(site || 'default');
 
       // Temporary deactivation: Gumtree (AU) and Sbazar (CZ) require proxy setup
       if (country === 'au' || country === 'cz') {
@@ -45,13 +46,14 @@ export function setupLeboncoinRoute(app) {
         });
       }
 
-      const config = getCountryConfig(country);
-      const searchUrl = getSearchUrl(country, config, query, pageNum);
+      const config = getCountryConfig(country, selectedSite);
+      const scrapeCountry = config.countryKey || country;
+      const searchUrl = getSearchUrl(scrapeCountry, config, query, pageNum);
       const gumtreeProxyServer = process.env.GUMTREE_PROXY_SERVER || '';
       const gumtreeProxyUsername = process.env.GUMTREE_PROXY_USERNAME || '';
       const gumtreeProxyPassword = process.env.GUMTREE_PROXY_PASSWORD || '';
 
-      console.log(`🤖 Scraping ${config.name} with Puppeteer for: "${query}" (country: ${country}, page ${pageNum})`);
+      console.log(`🤖 Scraping ${config.name} with Puppeteer for: "${query}" (country: ${country}, site: ${selectedSite}, scraper: ${scrapeCountry}, page ${pageNum})`);
 
       const launchArgs = [
         '--no-sandbox',
@@ -518,7 +520,7 @@ export function setupLeboncoinRoute(app) {
             country,
             page: pageNum,
             searchUrl,
-            source: getSourceName(country),
+            source: getSourceName(country, selectedSite),
           });
         }
       }
@@ -582,14 +584,14 @@ export function setupLeboncoinRoute(app) {
             country,
             page: pageNum,
             searchUrl,
-            source: getSourceName(country),
+            source: getSourceName(country, selectedSite),
             debug: bolhaChallenge,
           });
         }
       }
 
       // Wait for ads/listings to load (different selectors FR vs DE vs BE)
-      const selector = getSelector(country);
+      const selector = getSelector(scrapeCountry);
 
       if (country === 'au') {
         console.log(`🪵 [${config.name.toUpperCase()}] Waiting for selector:`, selector);
@@ -792,12 +794,12 @@ export function setupLeboncoinRoute(app) {
             country,
             page: pageNum,
             searchUrl,
-            source: getSourceName(country),
+            source: getSourceName(country, selectedSite),
           });
         }
       }
 
-      const lazyScrollConfig = getLazyScrollConfig(country);
+      const lazyScrollConfig = getLazyScrollConfig(scrapeCountry);
 
       // Apply country-specific lazy scrolling strategy when enabled.
       if (lazyScrollConfig.enabled) {
@@ -856,7 +858,7 @@ export function setupLeboncoinRoute(app) {
         await new Promise(resolve => setTimeout(resolve, lazyScrollConfig.decodeDelayMs));
       }
 
-      if (country === 'ee') {
+      if (scrapeCountry === 'ee') {
         // Osta.ee thumbnails often settle after the first render pass, so wait a bit longer before extraction.
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
@@ -864,7 +866,7 @@ export function setupLeboncoinRoute(app) {
       // Load more results for Wallapop (Spain) by clicking "Cargar más" button once, then scrolling
       if (country === 'es') {
         console.log('📜 Loading more Wallapop results...');
-        const itemsPerPage = getItemsPerPage(country);
+        const itemsPerPage = getItemsPerPage(scrapeCountry);
         const totalItemsNeeded = pageNum * itemsPerPage;
         
         try {
@@ -962,7 +964,7 @@ export function setupLeboncoinRoute(app) {
 
       if (country === 'tr') {
         console.log('📜 Loading more Letgo results...');
-        const itemsPerPage = getItemsPerPage(country);
+        const itemsPerPage = getItemsPerPage(scrapeCountry);
         const totalItemsNeeded = pageNum * itemsPerPage;
 
         if (pageNum === 1) {
@@ -1085,7 +1087,7 @@ export function setupLeboncoinRoute(app) {
       }
 
       // Extract data from the page
-      const extractor = getExtractor(country);
+      const extractor = getExtractor(scrapeCountry);
 
       if (country === 'au') {
         const preExtractCount = await page_obj.evaluate((sel) => document.querySelectorAll(sel).length, selector);
@@ -1399,14 +1401,14 @@ export function setupLeboncoinRoute(app) {
       }
 
       if (country === 'es' && pageNum > 1) {
-        const itemsPerPage = getItemsPerPage(country);
+        const itemsPerPage = getItemsPerPage(scrapeCountry);
         const startIndex = (pageNum - 1) * itemsPerPage;
         const endIndex = pageNum * itemsPerPage;
         items = pageData.slice(startIndex, endIndex);
         console.log(`📄 Wallapop: Extracted items ${startIndex}-${endIndex - 1} from ${pageData.length} total loaded items`);
       }
       if (country === 'tr' && pageNum > 1) {
-        const itemsPerPage = getItemsPerPage(country);
+        const itemsPerPage = getItemsPerPage(scrapeCountry);
         const startIndex = (pageNum - 1) * itemsPerPage;
         const endIndex = pageNum * itemsPerPage;
         items = pageData.slice(startIndex, endIndex);
@@ -1421,7 +1423,8 @@ export function setupLeboncoinRoute(app) {
         count: items.length,
         page: pageNum,
         items,
-        source: getSourceName(country),
+        source: getSourceName(country, selectedSite),
+        site: selectedSite,
       });
     } catch (error) {
       if (browser) await browser.close();

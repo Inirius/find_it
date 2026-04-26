@@ -1,7 +1,6 @@
 // Country configurations: domains, names, and marketplace info
 
-export function getCountryConfig(country) {
-  const configs = {
+const configs = {
     al: { domain: 'merrjep.al', name: 'Merrjep' },
     am: { domain: 'list.am', name: 'List.am' },
     au: { domain: 'www.gumtree.com.au', name: 'Gumtree' },
@@ -48,8 +47,69 @@ export function getCountryConfig(country) {
     tr: { domain: 'letgo.com', name: 'LetGo' },
     ua: { domain: 'olx.ua', name: 'OLX' },
     xk: { domain: 'merrjep.com', name: 'Merrjep' },
+};
+
+const classifiedSitesByCountry = {
+  fi: [
+    {
+      id: 'huuto',
+      countryKey: 'fi',
+      domain: 'huuto.net',
+      name: 'Huuto',
+    },
+    {
+      id: 'tori',
+      countryKey: 'fi1',
+      domain: 'www.tori.fi',
+      name: 'Tori',
+    },
+  ],
+  ee: [
+    {
+      id: 'osta',
+      countryKey: 'ee',
+      domain: 'osta.ee',
+      name: 'Osta',
+    },
+    {
+      id: 'okidoki',
+      countryKey: 'ee1',
+      domain: 'www.okidoki.ee',
+      name: 'Okidoki',
+    },
+  ],
+};
+
+export function getCountryClassifiedSites(country) {
+  const customSites = classifiedSitesByCountry[country];
+  if (customSites && customSites.length > 0) {
+    return customSites;
+  }
+
+  const fallback = configs[country] || configs.fr;
+  return [
+    {
+      id: 'default',
+      countryKey: country in configs ? country : 'fr',
+      domain: fallback.domain,
+      name: fallback.name,
+    },
+  ];
+}
+
+export function getCountryConfig(country, site = 'default') {
+  const sites = getCountryClassifiedSites(country);
+  const selectedSite =
+    site === 'default'
+      ? sites[0]
+      : sites.find((entry) => entry.id === site) || sites[0];
+
+  return {
+    domain: selectedSite.domain,
+    name: selectedSite.name,
+    countryKey: selectedSite.countryKey,
+    siteId: selectedSite.id,
   };
-  return configs[country] || configs.fr;
 }
 
 export function getEbaySiteId(country) {
@@ -90,7 +150,7 @@ export function getVintedDomain(country = 'fr') {
   return `www.vinted.${country}`;
 }
 
-export function getSourceName(country) {
-  const config = getCountryConfig(country);
+export function getSourceName(country, site = 'default') {
+  const config = getCountryConfig(country, site);
   return `${config.name} (Puppeteer)`;
 }
