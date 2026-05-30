@@ -300,13 +300,15 @@ export async function extractLetgoData(page_obj) {
 }
 
 export function getExtractor(country) {
+  const createOlxExtractor = (olxCountry) => (page_obj) => extractOlxData(page_obj, getOlxConfig(olxCountry));
+
   const extractors = {
     fr: extractLeBonCoinData,
     cz: extractSbazarData,
     dk: extractDbaData,
     de: extractEbayKleinanzeigenData,
-    ba: extractOlxBaData,
-    bg: extractOlxBgData,
+    ba: createOlxExtractor('ba'),
+    bg: createOlxExtractor('bg'),
     cy: extractVendoraData,
     gr: extractVendoraData,
     hr: extractNjuskaloData,
@@ -320,10 +322,10 @@ export function getExtractor(country) {
     at: extractWillhabenData,
     es: extractWallapopData,
     nl: extract2ememainData,
-    pl: extractOlxData,
-    pt: extractOlxPtData,
-    ro: extractOlxRoData,
-    ua: extractOlxUaData,
+    pl: createOlxExtractor('pl'),
+    pt: createOlxExtractor('pt'),
+    ro: createOlxExtractor('ro'),
+    ua: createOlxExtractor('ua'),
     au: extractGumtreeData,
     gb: extractGumtreeUkData,
     by: extractKufarData,
@@ -335,7 +337,7 @@ export function getExtractor(country) {
     hu: extractJofogasData,
     it: extractSubitoData,
     is: extractBlandData,
-    kz: extractOlxKzData,
+    kz: createOlxExtractor('kz'),
     ie: extractDoneDealData,
     lt: extractSkelbIUData,
     lv: extractSsLvData,
@@ -617,30 +619,6 @@ export async function extractOlxData(page_obj, countryConfig = getOlxConfig('pl'
 
     return results;
   }, countryConfig);
-}
-
-export async function extractOlxPtData(page_obj) {
-  return await extractOlxData(page_obj, getOlxConfig('pt'));
-}
-
-export async function extractOlxRoData(page_obj) {
-  return await extractOlxData(page_obj, getOlxConfig('ro'));
-}
-
-export async function extractOlxUaData(page_obj) {
-  return await extractOlxData(page_obj, getOlxConfig('ua'));
-}
-
-export async function extractOlxBgData(page_obj) {
-  return await extractOlxData(page_obj, getOlxConfig('bg'));
-}
-
-export async function extractOlxKzData(page_obj) {
-  return await extractOlxData(page_obj, getOlxConfig('kz'));
-}
-
-export async function extractOlxBaData(page_obj) {
-  return await extractOlxData(page_obj, getOlxConfig('ba'));
 }
 
 export async function extractWillhabenData(page_obj) {
