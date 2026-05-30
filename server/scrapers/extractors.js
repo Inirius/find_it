@@ -1,5 +1,7 @@
 // Data extractors for different marketplaces
 
+import { getOlxConfig } from '../config/olxConfig.ts';
+
 export async function extractLeBonCoinData(page_obj) {
   return await page_obj.evaluate(() => {
     const results = [];
@@ -515,61 +517,20 @@ export async function extract2ememainData(page_obj) {
   });
 }
 
-export async function extractOlxData(page_obj) {
-  return await page_obj.evaluate(() => {
+export async function extractOlxData(page_obj, countryConfig = getOlxConfig('pl')) {
+  return await page_obj.evaluate((config) => {
     const results = [];
-    const listingCards = document.querySelectorAll('div[data-cy="l-card"]');
+    const listingCards = document.querySelectorAll(config.cardSelector);
 
-    listingCards.forEach((card) => {
-      try {
-        // URL from the link with /d/oferta/
-        const linkEl = card.querySelector('a[href*="/d/oferta/"]');
-        const href = linkEl?.getAttribute('href');
-        const url = href ? (href.startsWith('http') ? href : `https://www.olx.pl${href}`) : null;
+    const cleanText = (value) => (value || '').replace(/\s+/g, ' ').replace(/\u00a0/g, ' ').trim();
 
-        // Title
-        const titleEl = card.querySelector('[data-testid="ad-card-title"] h4');
-        const title = titleEl?.textContent?.trim();
-
-        // Image
-        let image = card.querySelector('img')?.getAttribute('src');
-        if (!image) {
-          const imgAttr = card.querySelector('img')?.getAttribute('data-src');
-          if (imgAttr) image = imgAttr;
-        }
-
-        // Price - look for text with "zł" 
-        let price = null;
-        const priceEl = card.querySelector('[data-testid="ad-price"]');
-        if (priceEl?.textContent) {
-          const priceText = priceEl.textContent.trim();
-          const match = priceText.match(/([\d\s.,]+\s*zł)/);
-          if (match) price = match[1].trim();
-        }
-
-        // Shipping - look for "Pakietem Ochronnym" or similar badges
-        let shipping = null;
-        const badgeText = card.textContent;
-        if (badgeText.includes('Pakietem Ochronnym')) {
-          shipping = 'Pakiet Ochronny';
-        }
-
-        if (title && url) {
-          results.push({ title, url, image, alt: title, price, shipping });
-        }
-      } catch (e) {
-        console.warn('Parse error:', e.message);
-      }
-    });
-
-    return results;
-  });
-}
-
-export async function extractOlxPtData(page_obj) {
-  return await page_obj.evaluate(() => {
-    const results = [];
-    const listingCards = document.querySelectorAll('div[data-cy="l-card"], div[data-testid="l-card"]');
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `${config.baseUrl}${value}`;
+      return `${config.baseUrl}/${value}`;
+    };
 
     const pickBestFromSrcset = (srcset) => {
       if (!srcset) return null;
@@ -580,47 +541,86 @@ export async function extractOlxPtData(page_obj) {
       return candidates.length ? candidates[candidates.length - 1] : null;
     };
 
+    const firstMatch = (root, selectors) => {
+      for (const selector of selectors || []) {
+        const element = root.querySelector(selector);
+        if (element) return element;
+      }
+      return null;
+    };
+
+    const extractImage = (card) => {
+      const imageElement = card.querySelector(config.imageSelector);
+      if (!imageElement) return null;
+
+      for (const attribute of config.imageAttributes || []) {
+        const value = imageElement.getAttribute(attribute);
+        if (!value) continue;
+
+        if (attribute.includes('srcset')) {
+          const srcsetUrl = pickBestFromSrcset(value);
+          if (srcsetUrl) return srcsetUrl;
+          continue;
+        }
+
+        return value;
+      }
+
+      return null;
+    };
+
+    const extractPrice = (card) => {
+      const priceElement = firstMatch(card, config.priceSelectors);
+      const priceText = cleanText(priceElement?.textContent);
+      if (!priceText) return null;
+
+      const pricePattern = new RegExp(config.pricePatternSource, config.pricePatternFlags || 'i');
+      const match = priceText.match(pricePattern);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+
+      return config.priceReturnTextWhenNoMatch ? priceText : null;
+    };
+
+    const extractShipping = (card) => {
+      const text = cleanText(card.textContent);
+
+      if (config.shippingContains && text.includes(config.shippingContains)) {
+        return config.shippingLabel || config.shippingContains;
+      }
+
+      const shippingElement = firstMatch(card, config.shippingSelectors);
+      const shippingText = cleanText(shippingElement?.textContent);
+      return shippingText || null;
+    };
+
     listingCards.forEach((card) => {
       try {
-        const linkEl = card.querySelector('a[href*="/d/anuncio/"]') || card.querySelector('a[href]');
-        const href = linkEl?.getAttribute('href');
-        const url = href ? (href.startsWith('http') ? href : `https://www.olx.pt${href}`) : null;
+        const linkEl = firstMatch(card, config.linkSelectors);
+        const url = normalizeUrl(linkEl?.getAttribute('href'));
 
-        const titleEl = card.querySelector('[data-testid="ad-card-title"] h4') || card.querySelector('h4');
-        const title = titleEl?.textContent?.trim() || null;
+        const titleEl = firstMatch(card, config.titleSelectors);
+        const title = cleanText(titleEl?.textContent) || null;
 
-        const imgEl = card.querySelector('img');
-        const image =
-          pickBestFromSrcset(imgEl?.getAttribute('srcset')) ||
-          pickBestFromSrcset(imgEl?.getAttribute('data-srcset')) ||
-          imgEl?.getAttribute('src') ||
-          imgEl?.getAttribute('data-src') ||
-          null;
-
-        let price = null;
-        const priceEl = card.querySelector('[data-testid="ad-price"]');
-        if (priceEl?.textContent) {
-          const priceText = priceEl.textContent.replace(/\s+/g, ' ').trim();
-          const match = priceText.match(/([\d\s.,]+\s*€)/i);
-          price = match ? match[1].trim() : priceText;
-        }
-
-        let shipping = null;
-        const locationDateEl = card.querySelector('[data-testid="location-date"]');
-        if (locationDateEl?.textContent) {
-          shipping = locationDateEl.textContent.replace(/\s+/g, ' ').trim();
-        }
+        const image = extractImage(card);
+        const price = extractPrice(card);
+        const shipping = extractShipping(card);
 
         if (title && url) {
           results.push({ title, url, image, alt: title, price, shipping });
         }
       } catch (e) {
-        console.warn('Parse error (OLX.pt):', e.message);
+        console.warn(`Parse error (OLX.${config.countryCode}):`, e.message);
       }
     });
 
     return results;
-  });
+  }, countryConfig);
+}
+
+export async function extractOlxPtData(page_obj) {
+  return await extractOlxData(page_obj, getOlxConfig('pt'));
 }
 
 export async function extractOlxRoData(page_obj) {
