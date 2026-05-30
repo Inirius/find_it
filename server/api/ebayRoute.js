@@ -176,39 +176,3 @@ export function setupEbayRoutes(app) {
     }
   });
 }
-
-// Demo data function for testing without API keys
-function getDemoData(query) {
-  return {
-    success: true,
-    count: 3,
-    items: [
-      {
-        title: `[DEMO] Cabela's Big Game Hunter 2013 - Nintendo Wii U`,
-        url: 'https://www.ebay.fr',
-        image: 'https://via.placeholder.com/300x300.png?text=Cabela+Wii+U',
-        alt: "Cabela's Big Game Hunter 2013",
-        price: '25,00 EUR',
-        shipping: 'Livraison gratuite'
-      },
-      {
-        title: `[DEMO] Cabela's Dangerous Hunts 2013 Wii U Complet`,
-        url: 'https://www.ebay.fr',
-        image: 'https://via.placeholder.com/300x300.png?text=Cabela+Complete',
-        alt: "Cabela's Dangerous Hunts",
-        price: '30,00 EUR',
-        shipping: 'Livraison: 4,50 EUR'
-      },
-      {
-        title: `[DEMO] Nintendo Wii U - Cabela's Bundle avec fusil`,
-        url: 'https://www.ebay.fr',
-        image: 'https://via.placeholder.com/300x300.png?text=Bundle',
-        alt: 'Cabela Bundle',
-        price: '89,99 EUR',
-        shipping: 'Livraison gratuite'
-      }
-    ],
-    source: 'Demo Mode - Configure your eBay API keys in server/.env',
-    note: `Recherche pour: "${query}"`
-  };
-}

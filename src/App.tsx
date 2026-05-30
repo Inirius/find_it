@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
-import EbayCard from './components/EbayCard'
-import LeboncoinCard from './components/LeboncoinCard'
+import Card from './components/Card'
 import { hasEbaySupportBrowse, hasVintedSupport } from '../shared/countrySupport.js'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || 'http://localhost:3001';
@@ -593,7 +592,7 @@ function App() {
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
             <h2 style={{fontSize: '18px', marginBottom: 0}}>eBay {getCountryName(country)}</h2>
             {ebayItems.map((item, index) => (
-              <EbayCard
+              <Card
                 key={index}
                 title={item.title}
                 url={item.url}
@@ -618,7 +617,7 @@ function App() {
             <div key={siteId} style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
               <h2 style={{fontSize: '18px', marginBottom: 0}}>{siteLabel}</h2>
               {items.map((item, index) => (
-                <LeboncoinCard
+                <Card
                   key={`${siteId}-${index}`}
                   title={item.title}
                   url={item.url}
@@ -639,7 +638,7 @@ function App() {
           <div style={{display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, overflow: 'hidden'}}>
             <h2 style={{fontSize: '18px', marginBottom: 0}}>{getVintedLabel(country)}</h2>
             {vintedItems.map((item, index) => (
-              <LeboncoinCard
+              <Card
                 key={index}
                 title={item.title}
                 url={item.url}
