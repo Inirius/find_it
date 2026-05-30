@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
-import Card from './components/Card'
+import Card from './components/Card.tsx'
 import { hasEbaySupportBrowse, hasVintedSupport } from '../shared/countrySupport.js'
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || 'http://localhost:3001';
