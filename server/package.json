@@ -5,8 +5,8 @@
   "description": "Backend server for eBay scraping",
   "main": "index.js",
   "scripts": {
-    "start": "node --experimental-strip-types index.js",
-    "dev": "node --experimental-strip-types --watch index.js"
+    "start": "node index.js",
+    "dev": "node --watch index.js"
   },
   "dependencies": {
     "axios": "^1.6.2",

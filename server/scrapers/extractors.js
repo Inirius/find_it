@@ -1,6 +1,6 @@
 // Data extractors for different marketplaces
 
-import { getOlxConfig } from '../config/olxConfig.ts';
+import { getOlxConfig } from '../config/olxConfig.js';
 
 export async function extractLeBonCoinData(page_obj) {
   return await page_obj.evaluate(() => {
