@@ -3,7 +3,18 @@ import './App.css'
 import Card from './components/Card.tsx'
 import { hasEbaySupportBrowse, hasVintedSupport } from '../shared/countrySupport.js'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || 'http://localhost:3001';
+const API_BASE_URL = (() => {
+  const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, '');
+  }
+
+  if (import.meta.env.DEV) {
+    return 'http://localhost:3001';
+  }
+
+  return '';
+})();
 
 type Item = {
   title: string | null;
