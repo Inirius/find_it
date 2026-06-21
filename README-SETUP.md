@@ -45,6 +45,20 @@ Le script effectue notamment :
 - `sudo systemctl restart find-it-server`
 - `sudo systemctl reload caddy`
 
+## Déploiement GitHub Actions
+
+Le workflow [.github/workflows/deploy.yml](.github/workflows/deploy.yml) déclenche le déploiement sur `push` vers `main` ou manuellement via `workflow_dispatch`.
+
+Secrets GitHub requis :
+- `VPS_HOST`
+- `VPS_USERNAME`
+- `VPS_SSH_PRIVATE_KEY`
+- `VPS_SSH_PORT`
+
+Le workflow se connecte en SSH au VPS puis exécute `./deploy.sh` dans `/var/www/find_it`.
+
+Note : le compte SSH utilisé par GitHub Actions doit pouvoir exécuter `sudo systemctl restart find-it-server` et `sudo systemctl reload caddy` sans demande de mot de passe, sinon le déploiement s'arrêtera.
+
 ## API Backend
 
 ### Endpoint de recherche (Browse API)
