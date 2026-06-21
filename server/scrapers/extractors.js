@@ -5,27 +5,47 @@ import { getOlxConfig } from '../config/olxConfig.js';
 export async function extractLeBonCoinData(page_obj) {
   return await page_obj.evaluate(() => {
     const results = [];
-    const adCards = document.querySelectorAll('[data-test-id="ad"]');
+    const adCards = document.querySelectorAll('[data-qa-id="aditem_container"], article[data-qa-id="aditem_container"], article');
+
+    const cleanText = (value) => (value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const normalizeUrl = (value) => {
+      if (!value) return null;
+      if (value.startsWith('http')) return value;
+      if (value.startsWith('//')) return `https:${value}`;
+      if (value.startsWith('/')) return `https://www.leboncoin.fr${value}`;
+      return value;
+    };
     
     adCards.forEach((card) => {
       try {
-        // Title from article aria-label or h3
-        const article = card.querySelector('article[data-test-id="ad"]') || card;
+        const article = card.matches('article') ? card : card.closest('article') || card;
+        const linkEl = article.querySelector('a[href*="/ad/"]') || card.querySelector('a[href*="/ad/"]') || card.querySelector('a[href]');
+        const href = linkEl?.getAttribute('href');
+        const url = normalizeUrl(href);
+
+        if (!url) {
+          return;
+        }
+
+        // Title from article aria-label, visible text or link title
         let title = article.getAttribute('aria-label');
         if (!title) {
-          const h3 = card.querySelector('h3');
-          title = h3?.textContent?.trim();
+          const titleEl =
+            article.querySelector('h3') ||
+            article.querySelector('p[class*="text-body-1-highlight"]') ||
+            article.querySelector('p[class*="line-clamp"]') ||
+            article.querySelector('a[aria-label]');
+          title = cleanText(titleEl?.textContent || titleEl?.getAttribute?.('aria-label'));
+        }
+        if (!title && linkEl?.getAttribute('title')) {
+          title = cleanText(linkEl.getAttribute('title'));
         }
         
-        // URL from main link
-        const linkEl = card.querySelector('a[href*="/ad/"]') || card.querySelector('a[href]');
-        const href = linkEl?.getAttribute('href');
-        const url = href ? (href.startsWith('http') ? href : `https://www.leboncoin.fr${href}`) : null;
-        
         // Image from picture/source or img
-        let image = card.querySelector('img')?.getAttribute('src');
+        let image = article.querySelector('img')?.getAttribute('src');
         if (!image) {
-          const source = card.querySelector('picture source[srcset]');
+          const source = article.querySelector('picture source[srcset]');
           if (source) {
             const srcset = source.getAttribute('srcset');
             image = srcset?.split(',')[0]?.split(' ')[0];
@@ -34,13 +54,14 @@ export async function extractLeBonCoinData(page_obj) {
 
         // Price: look for explicit pattern "Prix: 465 €" in full card text
         let price = null;
-        const pricePatternMatch = card.textContent.match(/Prix:\s*([\d\s.,]+\s*€)/);
+        const cardText = cleanText(article.textContent);
+        const pricePatternMatch = cardText.match(/Prix:\s*([\d\s.,]+\s*€)/i);
         if (pricePatternMatch) {
           price = pricePatternMatch[1].trim();
         }
 
         // Livraison: look for explicit "Livraison possible" in full card text
-        const shipping = card.textContent.includes('Livraison possible') ? 'Livraison possible' : null;
+        const shipping = cardText.includes('Livraison possible') ? 'Livraison possible' : null;
 
         if (title && url) {
           results.push({ title, url, image, alt: title, price, shipping });

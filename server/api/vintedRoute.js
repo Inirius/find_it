@@ -130,16 +130,24 @@ export function setupVintedRoutes(app) {
       
       await page_obj.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       
-      // Wait for items to load
-      await page_obj.waitForSelector('a[href*="/items/"]', { timeout: 15000 });
+      // Wait for items to load, but accept both current and legacy item link patterns.
+      await page_obj.waitForSelector('a[href*="/items/"], a[href*="/item/"]', { timeout: 15000 });
 
       const currency = getCurrency(country);
       const pageData = await page_obj.evaluate((currencyInfo) => {
         const results = [];
         const seenUrls = new Set();
-        const links = document.querySelectorAll('a[href*="/items/"]');
+        const links = document.querySelectorAll('a[href*="/items/"], a[href*="/item/"]');
 
         const cleanText = (value) => (value || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+
+        const isLikelyTitleText = (value) => {
+          const normalized = cleanText(value);
+          if (!normalized) return false;
+          if (/^(€|\d|배송|shipping|buyer protection|new|used|condition)/i.test(normalized)) return false;
+          if (/^(✓|×|★|\d+[\s\S]*€)/.test(normalized)) return false;
+          return normalized.length >= 3;
+        };
 
         const extractGenericPrice = (text) => {
           const normalized = cleanText(text);
@@ -162,18 +170,35 @@ export function setupVintedRoutes(app) {
             seenUrls.add(url);
 
             const card =
+              link.closest('[data-testid*="item"]') ||
               link.closest('[data-testid="grid-item"]') ||
               link.closest('article') ||
+              link.closest('li') ||
               link.parentElement;
 
-            // Extract title from the title attribute (before first comma)
+            // Extract title from structured text first, then fall back to the title attribute.
             let title = null;
-            const titleEl = card?.querySelector('[data-testid$="--description-title"]') || card?.querySelector('h3') || card?.querySelector('h2');
-            if (titleEl?.textContent) {
-              title = cleanText(titleEl.textContent);
+            const titleEl =
+              card?.querySelector('[data-testid*="title"]') ||
+              card?.querySelector('[data-testid$="--description-title"]') ||
+              card?.querySelector('h3') ||
+              card?.querySelector('h2');
+
+            const textCandidates = [
+              titleEl?.textContent,
+              ...Array.from(card?.querySelectorAll('p, span, h3, h2') || []).map((element) => element.textContent)
+            ]
+              .map(cleanText)
+              .filter(isLikelyTitleText);
+
+            if (textCandidates.length > 0) {
+              title = textCandidates[0];
             }
             if (!title && titleAttr) {
               title = cleanText(titleAttr.split(',')[0]);
+            }
+            if (!title) {
+              title = cleanText(card?.getAttribute('aria-label'));
             }
             
             // Extract state/condition from title attribute (like price extraction)
