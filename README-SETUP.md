@@ -27,6 +27,24 @@ npm run dev
 
 L'application sera disponible sur `http://localhost:5173`
 
+## Déploiement VPS
+
+Sur le serveur Debian, le script [deploy.sh](deploy.sh) automatise la mise à jour du dépôt, la réinstallation des dépendances, le build frontend et le redémarrage des services.
+
+```bash
+cd /var/www/find_it
+chmod +x deploy.sh
+./deploy.sh
+```
+
+Le script effectue notamment :
+- `git pull --ff-only`
+- `npm ci` à la racine
+- `npm ci` dans `server/`
+- `VITE_API_BASE_URL=https://find-it-here.fr npm run build`
+- `sudo systemctl restart find-it-server`
+- `sudo systemctl reload caddy`
+
 ## API Backend
 
 ### Endpoint de recherche (Browse API)
