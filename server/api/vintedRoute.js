@@ -118,6 +118,7 @@ export function setupVintedRoutes(app) {
   // Vinted search endpoint
   app.get('/api/vinted/search', async (req, res) => {
     let browser;
+    let launchConfig;
     try {
       const { query = 'drone', page = '1', country = 'fr' } = req.query;
       
@@ -146,7 +147,8 @@ export function setupVintedRoutes(app) {
 
       console.log(`🤖 Scraping Vinted (${country}) page ${vintedPageToLoad} for: "${query}" (frontend page ${pageNum})`);
 
-      browser = await puppeteer.launch(getPuppeteerLaunchOptions());
+      launchConfig = await getPuppeteerLaunchOptions();
+      browser = await puppeteer.launch(launchConfig.options);
 
       const page_obj = await browser.newPage();
       await page_obj.setViewport({ width: 1920, height: 1080 });
@@ -321,6 +323,7 @@ export function setupVintedRoutes(app) {
       });
 
       await browser.close();
+      await launchConfig.cleanup();
       
       const totalScraped = normalizedData.length;
       const pagesPerVintedPage = Math.max(1, Math.ceil(totalScraped / itemsPerPage));
@@ -345,6 +348,7 @@ export function setupVintedRoutes(app) {
 
     } catch (error) {
       if (browser) await browser.close();
+      if (launchConfig) await launchConfig.cleanup();
       console.error('Vinted Puppeteer error:', error.message);
       res.status(500).json({ 
         success: false, 
