@@ -12,12 +12,6 @@ log() {
 log "Pull latest code"
 git pull --ff-only
 
-log "Remove stale frontend dependencies"
-rm -rf node_modules
-
-log "Remove stale backend dependencies"
-rm -rf server/node_modules
-
 log "Install frontend dependencies"
 npm ci
 
