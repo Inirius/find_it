@@ -349,6 +349,63 @@ export function setupVintedRoutes(app) {
       const startIdx = localPageOffset * itemsPerPage;
       const endIdx = startIdx + itemsPerPage;
       const paginatedItems = normalizedData.slice(startIdx, endIdx);
+
+      if (paginatedItems.length === 0) {
+        try {
+          const dumpData = await page_obj.evaluate(() => {
+            const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+            return {
+              href: window.location.href,
+              title: document.title,
+              bodyLength: document.body?.innerText?.length || 0,
+              links: document.querySelectorAll('a[href]').length,
+              itemLinks: document.querySelectorAll('a[href*="/items/"], a[href*="/item/"]').length,
+              articleCount: document.querySelectorAll('article').length,
+              testIdCount: document.querySelectorAll('[data-testid*="item"], [data-testid*="product"]').length,
+              html: document.documentElement?.outerHTML || '',
+              sampleText: normalize((document.body?.innerText || '').slice(0, 1200)),
+            };
+          });
+
+          const dumpDir = path.join(process.cwd(), 'debug', 'scrape-dumps');
+          await fs.mkdir(dumpDir, { recursive: true });
+
+          const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const safeQuery = String(query).trim().toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'query';
+          const baseName = `vinted-${country}-q-${safeQuery}-p-${pageNum}-${stamp}`;
+          const htmlPath = path.join(dumpDir, `${baseName}.html`);
+          const metaPath = path.join(dumpDir, `${baseName}.json`);
+
+          await fs.writeFile(htmlPath, dumpData.html, 'utf8');
+          await fs.writeFile(
+            metaPath,
+            JSON.stringify(
+              {
+                query,
+                country,
+                page: pageNum,
+                searchUrl,
+                finalUrl: dumpData.href,
+                title: dumpData.title,
+                bodyLength: dumpData.bodyLength,
+                links: dumpData.links,
+                itemLinks: dumpData.itemLinks,
+                articleCount: dumpData.articleCount,
+                testIdCount: dumpData.testIdCount,
+                sampleText: dumpData.sampleText,
+              },
+              null,
+              2
+            ),
+            'utf8'
+          );
+
+          console.log(`🧪 [VINTED-DEBUG] HTML dump saved: ${htmlPath}`);
+          console.log(`🧪 [VINTED-DEBUG] Metadata saved: ${metaPath}`);
+        } catch (dumpErr) {
+          console.warn('🧪 [VINTED-DEBUG] Failed to save HTML dump:', dumpErr.message);
+        }
+      }
       
       console.log(`✅ Scraped ${totalScraped} items from Vinted page ${vintedPageToLoad}, returning items ${startIdx}-${endIdx} (frontend page ${pageNum})`);
       

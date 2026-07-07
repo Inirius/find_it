@@ -1062,64 +1062,6 @@ export function setupLeboncoinRoute(app) {
         }
       }
 
-      const shouldDumpHtml = String(debugHtml).toLowerCase() !== '0' && String(debugHtml).toLowerCase() !== 'false';
-      if (shouldDumpHtml) {
-        try {
-          const dumpData = await page_obj.evaluate(() => {
-            const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
-            const itemCards = document.querySelectorAll('[data-testid="item-card"]').length;
-            const links = document.querySelectorAll('a[href]').length;
-
-            return {
-              href: window.location.href,
-              title: document.title,
-              bodyLength: document.body?.innerText?.length || 0,
-              itemCards,
-              links,
-              html: document.documentElement?.outerHTML || '',
-              sampleText: normalize((document.body?.innerText || '').slice(0, 1000)),
-            };
-          });
-
-          const debugDir = path.join(process.cwd(), 'debug', 'scrape-dumps');
-          await fs.mkdir(debugDir, { recursive: true });
-
-          const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const safeQuery = String(query).trim().toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'query';
-          const baseName = `${country}-q-${safeQuery}-p-${pageNum}-${stamp}`;
-          const htmlPath = path.join(debugDir, `${baseName}.html`);
-          const metaPath = path.join(debugDir, `${baseName}.json`);
-
-          await fs.writeFile(htmlPath, dumpData.html, 'utf8');
-          await fs.writeFile(
-            metaPath,
-            JSON.stringify(
-              {
-                query,
-                country,
-                page: pageNum,
-                selector,
-                searchUrl,
-                finalUrl: dumpData.href,
-                title: dumpData.title,
-                bodyLength: dumpData.bodyLength,
-                itemCards: dumpData.itemCards,
-                links: dumpData.links,
-                sampleText: dumpData.sampleText,
-              },
-              null,
-              2
-            ),
-            'utf8'
-          );
-
-          console.log(`🧪 [SCRAPE-DEBUG] HTML dump saved: ${htmlPath}`);
-          console.log(`🧪 [SCRAPE-DEBUG] Metadata saved: ${metaPath}`);
-        } catch (dumpErr) {
-          console.warn('🧪 [SCRAPE-DEBUG] Failed to save HTML dump:', dumpErr.message);
-        }
-      }
-
       // Extract data from the page
       const extractor = getExtractor(scrapeCountry);
 
@@ -1447,6 +1389,64 @@ export function setupLeboncoinRoute(app) {
         const endIndex = pageNum * itemsPerPage;
         items = pageData.slice(startIndex, endIndex);
         console.log(`📄 Letgo: Extracted items ${startIndex}-${endIndex - 1} from ${pageData.length} total loaded items`);
+      }
+
+      const shouldDumpHtml = String(debugHtml).toLowerCase() !== '0' && String(debugHtml).toLowerCase() !== 'false';
+      if (shouldDumpHtml && items.length === 0) {
+        try {
+          const dumpData = await page_obj.evaluate(() => {
+            const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+            const itemCards = document.querySelectorAll('[data-testid="item-card"]').length;
+            const links = document.querySelectorAll('a[href]').length;
+
+            return {
+              href: window.location.href,
+              title: document.title,
+              bodyLength: document.body?.innerText?.length || 0,
+              itemCards,
+              links,
+              html: document.documentElement?.outerHTML || '',
+              sampleText: normalize((document.body?.innerText || '').slice(0, 1000)),
+            };
+          });
+
+          const debugDir = path.join(process.cwd(), 'debug', 'scrape-dumps');
+          await fs.mkdir(debugDir, { recursive: true });
+
+          const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const safeQuery = String(query).trim().toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'query';
+          const baseName = `${country}-q-${safeQuery}-p-${pageNum}-${stamp}`;
+          const htmlPath = path.join(debugDir, `${baseName}.html`);
+          const metaPath = path.join(debugDir, `${baseName}.json`);
+
+          await fs.writeFile(htmlPath, dumpData.html, 'utf8');
+          await fs.writeFile(
+            metaPath,
+            JSON.stringify(
+              {
+                query,
+                country,
+                page: pageNum,
+                selector,
+                searchUrl,
+                finalUrl: dumpData.href,
+                title: dumpData.title,
+                bodyLength: dumpData.bodyLength,
+                itemCards: dumpData.itemCards,
+                links: dumpData.links,
+                sampleText: dumpData.sampleText,
+              },
+              null,
+              2
+            ),
+            'utf8'
+          );
+
+          console.log(`🧪 [SCRAPE-DEBUG] HTML dump saved: ${htmlPath}`);
+          console.log(`🧪 [SCRAPE-DEBUG] Metadata saved: ${metaPath}`);
+        } catch (dumpErr) {
+          console.warn('🧪 [SCRAPE-DEBUG] Failed to save HTML dump:', dumpErr.message);
+        }
       }
 
       await browser.close();
