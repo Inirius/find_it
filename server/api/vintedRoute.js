@@ -3,10 +3,13 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { hasVintedSupport } from '../../shared/countrySupport.js';
 import { getVintedDomain } from '../config/countryConfig.js';
 import { getItemsPerPage, getCurrency } from '../config/scrapingConfig.js';
+
+puppeteer.use(StealthPlugin());
 
 async function getPuppeteerLaunchOptions(extraArgs = []) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'find-it-puppeteer-'));
@@ -58,6 +61,9 @@ export function setupVintedRoutes(app) {
       const page = await browser.newPage();
       await page.setViewport({ width: 1920, height: 1080 });
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page.setExtraHTTPHeaders({
+        'accept-language': 'fr-FR,fr;q=0.9,en;q=0.8',
+      });
       
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
 
@@ -153,11 +159,21 @@ export function setupVintedRoutes(app) {
       const page_obj = await browser.newPage();
       await page_obj.setViewport({ width: 1920, height: 1080 });
       await page_obj.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page_obj.setExtraHTTPHeaders({
+        'accept-language': 'fr-FR,fr;q=0.9,en;q=0.8',
+      });
       
       await page_obj.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       
-      // Wait for items to load, but accept both current and legacy item link patterns.
-      await page_obj.waitForSelector('a[href*="/items/"], a[href*="/item/"]', { timeout: 15000 });
+      // Wait for items to load, but do not fail hard if Vinted serves a slower or different DOM on VPS.
+      try {
+        await page_obj.waitForFunction(
+          () => document.querySelectorAll('a[href*="/items/"], a[href*="/item/"], [data-testid*="item"], [data-testid*="product"], article, li').length > 0,
+          { timeout: 15000 },
+        );
+      } catch (waitError) {
+        console.warn('Vinted item wait timed out, continuing with available DOM:', waitError.message);
+      }
 
       const currency = getCurrency(country);
       const pageData = await page_obj.evaluate((currencyInfo) => {
