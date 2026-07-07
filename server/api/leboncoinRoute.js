@@ -1,6 +1,7 @@
 // LeBonCoin scraping API route
 
 import { promises as fs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
@@ -17,6 +18,41 @@ import {
 import { getExtractor } from '../scrapers/extractors.js';
 
 puppeteer.use(StealthPlugin());
+
+async function getPuppeteerLaunchOptions(extraArgs = []) {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'find-it-puppeteer-'));
+  const profileDir = path.join(tempRoot, 'profile');
+  const configDir = path.join(tempRoot, 'config');
+  const cacheDir = path.join(tempRoot, 'cache');
+
+  await Promise.all([
+    fs.mkdir(profileDir, { recursive: true }),
+    fs.mkdir(configDir, { recursive: true }),
+    fs.mkdir(cacheDir, { recursive: true }),
+  ]);
+
+  return {
+    options: {
+      headless: true,
+      userDataDir: profileDir,
+      env: {
+        XDG_CONFIG_HOME: configDir,
+        XDG_CACHE_HOME: cacheDir,
+      },
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-crash-reporter',
+        ...extraArgs,
+      ],
+    },
+    cleanup: async () => {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    },
+  };
+}
 
 export function setupLeboncoinRoute(app) {
   app.get('/api/leboncoin/search', async (req, res) => {
@@ -67,10 +103,8 @@ export function setupLeboncoinRoute(app) {
         console.log('🪵 [GUMTREE] Proxy enabled for scraping.');
       }
 
-      browser = await puppeteer.launch({
-        headless: true,
-        args: launchArgs,
-      });
+      const launchConfig = await getPuppeteerLaunchOptions(launchArgs);
+      browser = await puppeteer.launch(launchConfig.options);
 
       const page_obj = await browser.newPage();
       const letgoApiPayloads = [];
@@ -1416,6 +1450,7 @@ export function setupLeboncoinRoute(app) {
       }
 
       await browser.close();
+      await launchConfig.cleanup();
       console.log(`✅ Found ${items.length} items on ${config.name} page ${pageNum}`);
 
       res.json({

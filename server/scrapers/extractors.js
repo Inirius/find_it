@@ -1645,7 +1645,7 @@ export async function extractNjuskaloData(page_obj) {
 export async function extractKupujemProdajemData(page_obj) {
   return await page_obj.evaluate(() => {
     const results = [];
-    const cards = document.querySelectorAll('section.AdItem_adOuterHolder__hb5N_, section[id][data-scrolled]');
+    const cards = document.querySelectorAll('section[id][data-scrolled], section[class*="adOuterHolder"], section[class*="AdItem-module"], section:has(a[href*="/oglas/"])');
 
     const cleanText = (value) => (value || '').replace(/\s+/g, ' ').trim();
 
@@ -1659,34 +1659,33 @@ export async function extractKupujemProdajemData(page_obj) {
 
     cards.forEach((card) => {
       try {
-        const titleLink =
-          card.querySelector('a[href*="/oglas/"] .AdItem_name__iOZvA')?.closest('a[href]') ||
-          card.querySelector('a[href*="/oglas/"]');
+        const titleLink = card.querySelector('a[href*="/oglas/"]');
 
         const href = titleLink?.getAttribute('href');
         const url = normalizeUrl(href);
 
         const title =
-          cleanText(card.querySelector('.AdItem_name__iOZvA')?.textContent) ||
+          cleanText(card.querySelector('[class*="__name"]')?.textContent) ||
+          cleanText(card.querySelector('a[href*="/oglas/"] [class*="__name"]')?.textContent) ||
           cleanText(titleLink?.textContent) ||
           null;
 
-        const imgEl = card.querySelector('.AdItem_imageHolder__ropiU img') || card.querySelector('img');
+        const imgEl = card.querySelector('img');
         const image =
           normalizeUrl(imgEl?.getAttribute('src')) ||
           normalizeUrl(imgEl?.getAttribute('data-src')) ||
           null;
 
         let price = null;
-        const priceEl = card.querySelector('.AdItem_price__VZ_at, .AdItem_adPrice__18aqn, [class*="AdItem_price"]');
+        const priceEl = card.querySelector('[class*="priceText"], [class*="adPrice"], [class*="priceHolder"]');
         if (priceEl?.textContent) {
           const priceText = cleanText(priceEl.textContent);
           const match = priceText.match(/([\d\s.,]+\s*din)/i);
           price = match ? cleanText(match[1]) : priceText;
         }
 
-        const location = cleanText(card.querySelector('.AdItem_originAndPromoLocation__rQvKl p')?.textContent);
-        const posted = cleanText(card.querySelector('.AdItem_postedStatus__4y6Ca p, [class*="postedStatus"] p')?.textContent);
+        const location = cleanText(card.querySelector('[class*="originAndPromoLocation"] p')?.textContent);
+        const posted = cleanText(card.querySelector('[class*="postedStatus"] p')?.textContent);
         const shipping = [location || null, posted || null].filter(Boolean).join(' • ') || null;
 
         if (title && url) {

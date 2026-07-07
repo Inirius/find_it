@@ -1,9 +1,47 @@
 // Vinted scraping API routes
 
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import puppeteer from 'puppeteer';
 import { hasVintedSupport } from '../../shared/countrySupport.js';
 import { getVintedDomain } from '../config/countryConfig.js';
 import { getItemsPerPage, getCurrency } from '../config/scrapingConfig.js';
+
+async function getPuppeteerLaunchOptions(extraArgs = []) {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'find-it-puppeteer-'));
+  const profileDir = path.join(tempRoot, 'profile');
+  const configDir = path.join(tempRoot, 'config');
+  const cacheDir = path.join(tempRoot, 'cache');
+
+  await Promise.all([
+    fs.mkdir(profileDir, { recursive: true }),
+    fs.mkdir(configDir, { recursive: true }),
+    fs.mkdir(cacheDir, { recursive: true }),
+  ]);
+
+  return {
+    options: {
+      headless: true,
+      userDataDir: profileDir,
+      env: {
+        XDG_CONFIG_HOME: configDir,
+        XDG_CACHE_HOME: cacheDir,
+      },
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-crash-reporter',
+        ...extraArgs,
+      ],
+    },
+    cleanup: async () => {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+    },
+  };
+}
 
 export function setupVintedRoutes(app) {
   // Vinted debug endpoint - find correct selectors
@@ -14,15 +52,8 @@ export function setupVintedRoutes(app) {
       const domain = getVintedDomain(country);
       const searchUrl = `https://${domain}/catalog?search_text=${encodeURIComponent(query)}&catalog[]=3002`;
 
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-blink-features=AutomationControlled'
-        ]
-      });
+      const launchConfig = await getPuppeteerLaunchOptions();
+      browser = await puppeteer.launch(launchConfig.options);
 
       const page = await browser.newPage();
       await page.setViewport({ width: 1920, height: 1080 });
@@ -66,6 +97,7 @@ export function setupVintedRoutes(app) {
       }, currency);
 
       await browser.close();
+      await launchConfig.cleanup();
       
       res.json({ 
         success: true,
@@ -114,15 +146,7 @@ export function setupVintedRoutes(app) {
 
       console.log(`🤖 Scraping Vinted (${country}) page ${vintedPageToLoad} for: "${query}" (frontend page ${pageNum})`);
 
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-blink-features=AutomationControlled'
-        ]
-      });
+      browser = await puppeteer.launch(getPuppeteerLaunchOptions());
 
       const page_obj = await browser.newPage();
       await page_obj.setViewport({ width: 1920, height: 1080 });
