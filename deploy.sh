@@ -9,22 +9,14 @@ log() {
   printf '\n[deploy] %s\n' "$1"
 }
 
-repair_node_modules_ownership() {
-  local target_dir="$1"
-
-  if [ -d "$target_dir" ]; then
-    sudo chown -R "$(id -un)":"$(id -gn)" "$target_dir"
-  fi
-}
-
 log "Pull latest code"
 git pull --ff-only
 
-log "Fix frontend dependencies ownership if needed"
-repair_node_modules_ownership node_modules
+log "Remove stale frontend dependencies"
+rm -rf node_modules
 
-log "Fix backend dependencies ownership if needed"
-repair_node_modules_ownership server/node_modules
+log "Remove stale backend dependencies"
+rm -rf server/node_modules
 
 log "Install frontend dependencies"
 npm ci
