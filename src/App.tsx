@@ -539,7 +539,7 @@ function App() {
         />
       )}
       
-      <h1 style={{marginBottom: 12}}>Recherche multi-sites</h1>
+      <h1 style={{marginBottom: 12}}>Find it here !</h1>
         <form
           onSubmit={handleSearch}
           style={{display: 'flex', gap: 8, marginBottom: 16}}
