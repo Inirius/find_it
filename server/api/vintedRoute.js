@@ -406,6 +406,9 @@ export function setupVintedRoutes(app) {
           console.warn('🧪 [VINTED-DEBUG] Failed to save HTML dump:', dumpErr.message);
         }
       }
+
+      await browser.close();
+      await launchConfig.cleanup();
       
       console.log(`✅ Scraped ${totalScraped} items from Vinted page ${vintedPageToLoad}, returning items ${startIdx}-${endIdx} (frontend page ${pageNum})`);
       
