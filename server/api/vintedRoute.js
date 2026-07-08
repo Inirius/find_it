@@ -337,9 +337,6 @@ export function setupVintedRoutes(app) {
         const absUrl = item.url?.startsWith('http') ? item.url : item.url ? `https://${domain}${item.url}` : null;
         return { ...item, url: absUrl };
       });
-
-      await browser.close();
-      await launchConfig.cleanup();
       
       const totalScraped = normalizedData.length;
       const pagesPerVintedPage = Math.max(1, Math.ceil(totalScraped / itemsPerPage));
