@@ -46,6 +46,33 @@ async function getPuppeteerLaunchOptions(extraArgs = []) {
   };
 }
 
+async function detectVintedBlock(page) {
+  return await page.evaluate(() => {
+    const text = `${document.title || ''}\n${document.body?.innerText || ''}\n${document.documentElement?.outerHTML || ''}`.toLowerCase();
+    const blockedPatterns = [
+      'access denied',
+      'banned your access',
+      'your access has been blocked',
+      'forbidden',
+      'captcha',
+      'robot',
+      'unusual traffic',
+    ];
+
+    const matchedPattern = blockedPatterns.find((pattern) => text.includes(pattern));
+    if (!matchedPattern) {
+      return null;
+    }
+
+    return {
+      matchedPattern,
+      title: document.title || null,
+      href: window.location.href,
+      sampleText: (document.body?.innerText || '').slice(0, 500),
+    };
+  });
+}
+
 export function setupVintedRoutes(app) {
   // Vinted debug endpoint - find correct selectors
   app.get('/api/vinted/debug', async (req, res) => {
@@ -66,6 +93,18 @@ export function setupVintedRoutes(app) {
       });
       
       await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+
+      const blockedPage = await detectVintedBlock(page);
+      if (blockedPage) {
+        await browser.close();
+        await launchConfig.cleanup();
+        return res.status(403).json({
+          success: false,
+          error: 'Vinted access denied on this environment',
+          details: 'Vinted returned a block page instead of search results',
+          blockedPage,
+        });
+      }
 
       const currency = getCurrency(country);
       const pageInfo = await page.evaluate((currencyInfo) => {
@@ -164,6 +203,18 @@ export function setupVintedRoutes(app) {
       });
       
       await page_obj.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+
+      const blockedPage = await detectVintedBlock(page_obj);
+      if (blockedPage) {
+        await browser.close();
+        await launchConfig.cleanup();
+        return res.status(403).json({
+          success: false,
+          error: 'Vinted access denied on this environment',
+          details: 'Vinted returned a block page instead of search results',
+          blockedPage,
+        });
+      }
       
       // Wait for items to load, but do not fail hard if Vinted serves a slower or different DOM on VPS.
       try {
