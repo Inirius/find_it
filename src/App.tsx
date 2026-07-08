@@ -136,12 +136,13 @@ const getVintedLabel = (country: string): string => {
 };
 
 function App() {
-  const [query, setQuery] = useState('drone');
+  const [query, setQuery] = useState('');
   const [ebayItems, setEbayItems] = useState<Item[]>([]);
   const [leboncoinItemsBySite, setLeboncoinItemsBySite] = useState<Record<string, Item[]>>({});
   const [vintedItems, setVintedItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   
   // Menu sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -301,11 +302,27 @@ function App() {
   };
 
   useEffect(() => {
+    if (!hasSearched || !query.trim()) {
+      return;
+    }
+
     fetchItems(query, pageEbay, pageLbc, pageVinted);
-  }, [pageEbay, pageLbc, pageVinted, country, selectedLbcSites]);
+  }, [pageEbay, pageLbc, pageVinted, country, selectedLbcSites, hasSearched]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!query.trim()) {
+      setEbayItems([]);
+      setLeboncoinItemsBySite({});
+      setVintedItems([]);
+      setTotalEbay(0);
+      setTotalVinted(0);
+      setHasSearched(false);
+      setError(null);
+      return;
+    }
+
+    setHasSearched(true);
     setPageEbay(1);
     setPageLbc(1);
     setPageVinted(1);
@@ -391,9 +408,18 @@ function App() {
               setCountry(newCountry);
               setSources(newSources);
               setSelectedLbcSites(getClassifiedSites(newCountry).map((site) => site.id));
+              setQuery('');
               setPageEbay(1);
               setPageLbc(1);
               setPageVinted(1);
+              setEbayItems([]);
+              setLeboncoinItemsBySite({});
+              setVintedItems([]);
+              setTotalEbay(0);
+              setTotalVinted(0);
+              setError(null);
+              setLoading(false);
+              setHasSearched(false);
             }}
             style={{
               width: '100%',
@@ -569,7 +595,7 @@ function App() {
           </div>
         )}
 
-        {!loading && !error && ebayItems.length === 0 && totalLeboncoinItems === 0 && vintedItems.length === 0 && (
+        {hasSearched && !loading && !error && ebayItems.length === 0 && totalLeboncoinItems === 0 && vintedItems.length === 0 && (
         <div>Aucun résultat.</div>
       )}
 
