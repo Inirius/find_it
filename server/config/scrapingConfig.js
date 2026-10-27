@@ -93,7 +93,7 @@ export function getSelector(country) {
     is: 'div.classifiedentry, div[data-page], div.searchList',
     ie: 'li[data-testid^="listing-card-index-"], li[data-testid*="listing-card"], a[href*="/games-for-sale/"]',
     kz: 'div[data-cy="l-card"], div[data-testid="l-card"]',
-    cz: 'li[data-offer-id]',
+    cz: 'li.offer-id',
     dk: 'article.sf-search-ad, article[class*="sf-search-ad"]',
     fr: '[data-test-id="ad"]',
     de: '[data-testid="listing"], [data-testid*="listing"], a[href*="/s-anzeige/"], article',
