@@ -45,6 +45,8 @@ app.use('/api/ebay/notifications/', express.json({ limit: '10kb' }));
 // PUBLIC ENDPOINTS (Health, Root, etc.)
 // ============================================================================
 
+app.use(express.static('public'));
+
 // Simple ping endpoint for health and external reachability checks
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
